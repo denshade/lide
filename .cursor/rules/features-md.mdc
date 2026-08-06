@@ -1,0 +1,14 @@
+---
+description: Document features in features.md when adding or changing them
+alwaysApply: true
+---
+
+# Feature Descriptions in features.md
+
+Keep `features.md` at the repo root up to date with the product's features.
+
+- When you add a feature, add a clear description entry in `features.md`
+- When you change a feature's behavior, update its existing description to match
+- When you remove a feature, remove or mark its entry so the file stays accurate
+- Write for a reader who has not seen the code: what it does, when it applies, and any notable constraints
+- Create `features.md` if it does not exist yet

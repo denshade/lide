@@ -1,0 +1,137 @@
+package lide;
+
+import java.awt.GraphicsEnvironment;
+import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.SwingUtilities;
+import javax.swing.tree.DefaultMutableTreeNode;
+
+/**
+ * Tests for right-click context menus.
+ */
+public final class ContextMenuTest {
+    private static int passed;
+    private static int failed;
+
+    public static void main(String[] args) throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            System.out.println("SKIP: headless environment cannot run Swing context-menu tests");
+            return;
+        }
+        SwingUtilities.invokeAndWait(() -> {
+            testTabContextMenuItems();
+            testCloseOthers();
+            testCloseAll();
+            testProjectTreeFileMenu();
+            testProjectTreeDirectoryMenu();
+            testClickInactiveTabSelectsIt();
+        });
+        System.out.println("Passed: " + passed + ", Failed: " + failed);
+        if (failed > 0) {
+            System.exit(1);
+        }
+    }
+
+    private static void testTabContextMenuItems() {
+        EditorTabPane pane = new EditorTabPane();
+        pane.openUntitled("a.txt", "a", Language.PLAIN);
+        pane.openUntitled("b.txt", "b", Language.PLAIN);
+        JPopupMenu menu = pane.createTabContextMenu(0);
+        assertEqual("tab menu item count", 3, menu.getComponentCount());
+        assertEqual("first item", "Close", ((JMenuItem) menu.getComponent(0)).getText());
+        assertEqual("second item", "Close Others", ((JMenuItem) menu.getComponent(1)).getText());
+        assertEqual("third item", "Close All", ((JMenuItem) menu.getComponent(2)).getText());
+        assertTrue("Close Others enabled with 2 tabs",
+                ((JMenuItem) menu.getComponent(1)).isEnabled());
+    }
+
+    private static void testCloseOthers() {
+        EditorTabPane pane = new EditorTabPane();
+        pane.openUntitled("a.txt", "a", Language.PLAIN);
+        pane.openUntitled("b.txt", "b", Language.PLAIN);
+        pane.openUntitled("c.txt", "c", Language.PLAIN);
+        CodeEditor keep = pane.getActiveEditor();
+        pane.closeOtherTabs(keep);
+        assertEqual("tabs after close others", 1, pane.getTabCount());
+        assertEqual("kept editor", keep, pane.getActiveEditor());
+    }
+
+    private static void testCloseAll() {
+        EditorTabPane pane = new EditorTabPane();
+        pane.openUntitled("a.txt", "a", Language.PLAIN);
+        pane.openUntitled("b.txt", "b", Language.PLAIN);
+        pane.closeAllTabs();
+        assertEqual("tabs after close all", 0, pane.getTabCount());
+    }
+
+    private static void testProjectTreeFileMenu() {
+        ProjectTreePanel tree = new ProjectTreePanel();
+        AtomicReference<Path> opened = new AtomicReference<>();
+        tree.setOpenFileHandler(opened::set);
+
+        Path file = Path.of("src", "Demo.java");
+        DefaultMutableTreeNode node =
+                new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
+        JPopupMenu menu = tree.createContextMenu(node);
+        assertEqual("file menu item count", 1, menu.getComponentCount());
+        assertEqual("file menu item", "Open", ((JMenuItem) menu.getComponent(0)).getText());
+        ((JMenuItem) menu.getComponent(0)).doClick();
+        assertEqual("open handler path", file, opened.get());
+    }
+
+    private static void testProjectTreeDirectoryMenu() {
+        ProjectTreePanel tree = new ProjectTreePanel();
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(
+                new ProjectTreePanel.FileNode(Path.of("src"), true));
+        JPopupMenu menu = tree.createContextMenu(node);
+        assertEqual("dir menu item count", 1, menu.getComponentCount());
+        assertEqual("dir menu item", "Refresh", ((JMenuItem) menu.getComponent(0)).getText());
+    }
+
+    private static void testClickInactiveTabSelectsIt() {
+        EditorTabPane pane = new EditorTabPane();
+        pane.openUntitled("a.txt", "a", Language.PLAIN);
+        CodeEditor first = pane.getActiveEditor();
+        pane.openUntitled("b.txt", "b", Language.PLAIN);
+        assertEqual("second tab active", 1, pane.getSelectedTabIndex());
+
+        java.awt.Component header = pane.getTabHeaderAt(0);
+        assertTrue("tab header present", header != null);
+        header.dispatchEvent(new java.awt.event.MouseEvent(
+                header,
+                java.awt.event.MouseEvent.MOUSE_PRESSED,
+                System.currentTimeMillis(),
+                0,
+                2,
+                2,
+                1,
+                false,
+                java.awt.event.MouseEvent.BUTTON1));
+
+        assertEqual("inactive tab selected", 0, pane.getSelectedTabIndex());
+        assertEqual("first editor shown", first, pane.getActiveEditor());
+    }
+
+    private static void assertEqual(String label, Object expected, Object actual) {
+        if (expected == null ? actual == null : expected.equals(actual)) {
+            passed++;
+            return;
+        }
+        failed++;
+        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
+    }
+
+    private static void assertTrue(String label, boolean condition) {
+        if (condition) {
+            passed++;
+            return;
+        }
+        failed++;
+        System.err.println("FAIL " + label);
+    }
+
+    private ContextMenuTest() {
+    }
+}

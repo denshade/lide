@@ -1,0 +1,14 @@
+---
+description: Always add or update tests when changing behavior
+alwaysApply: true
+---
+
+# Always Add Tests
+
+Whenever you change code, add or update tests that cover the change.
+
+- Treat a change as incomplete until tests exist for the new or altered behavior
+- Prefer colocated or existing project test patterns over inventing a new layout
+- Cover the changed path: bug fixes need a regression test; features need happy-path and important edge cases
+- Do not skip tests for "small" or "obvious" changes unless the edit is purely non-behavioral (comments, formatting, docs-only)
+- Run the relevant tests after writing them and fix failures before finishing
