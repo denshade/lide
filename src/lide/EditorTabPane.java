@@ -143,6 +143,56 @@ public final class EditorTabPane extends JPanel {
         return null;
     }
 
+    public boolean undoActive() {
+        CodeEditor editor = getActiveEditor();
+        if (editor == null || !editor.canUndo()) {
+            return false;
+        }
+        editor.undo();
+        return true;
+    }
+
+    public boolean redoActive() {
+        CodeEditor editor = getActiveEditor();
+        if (editor == null || !editor.canRedo()) {
+            return false;
+        }
+        editor.redo();
+        return true;
+    }
+
+    public boolean copyActive() {
+        CodeEditor editor = getActiveEditor();
+        if (editor == null) {
+            return false;
+        }
+        editor.copy();
+        return true;
+    }
+
+    public boolean pasteActive() {
+        CodeEditor editor = getActiveEditor();
+        if (editor == null) {
+            return false;
+        }
+        editor.paste();
+        return true;
+    }
+
+    public boolean canUndoActive() {
+        CodeEditor editor = getActiveEditor();
+        return editor != null && editor.canUndo();
+    }
+
+    public boolean canRedoActive() {
+        CodeEditor editor = getActiveEditor();
+        return editor != null && editor.canRedo();
+    }
+
+    public boolean hasActiveEditor() {
+        return getActiveEditor() != null;
+    }
+
     public boolean saveActive() {
         CodeEditor editor = getActiveEditor();
         if (editor == null || editor.getFilePath() == null) {

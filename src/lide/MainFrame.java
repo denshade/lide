@@ -19,6 +19,8 @@ import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import javax.swing.KeyStroke;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.MenuEvent;
+import javax.swing.event.MenuListener;
 
 /**
  * Main IDE window: project tree + tabbed syntax-highlighted editor.
@@ -110,6 +112,8 @@ public final class MainFrame extends JFrame {
         file.addSeparator();
         file.add(exit);
 
+        JMenu edit = buildEditMenu();
+
         JMenu view = new JMenu("View");
         view.setMnemonic(KeyEvent.VK_V);
         JMenuItem about = new JMenuItem("About Lide");
@@ -122,8 +126,56 @@ public final class MainFrame extends JFrame {
         view.add(about);
 
         bar.add(file);
+        bar.add(edit);
         bar.add(view);
         return bar;
+    }
+
+    private JMenu buildEditMenu() {
+        JMenu edit = new JMenu("Edit");
+        edit.setMnemonic(KeyEvent.VK_E);
+
+        JMenuItem undo = new JMenuItem("Undo");
+        undo.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK));
+        undo.addActionListener(e -> editors.undoActive());
+
+        JMenuItem redo = new JMenuItem("Redo");
+        redo.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Y, InputEvent.CTRL_DOWN_MASK));
+        redo.addActionListener(e -> editors.redoActive());
+
+        JMenuItem copy = new JMenuItem("Copy");
+        copy.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK));
+        copy.addActionListener(e -> editors.copyActive());
+
+        JMenuItem paste = new JMenuItem("Paste");
+        paste.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_DOWN_MASK));
+        paste.addActionListener(e -> editors.pasteActive());
+
+        edit.addMenuListener(new MenuListener() {
+            @Override
+            public void menuSelected(MenuEvent e) {
+                boolean hasEditor = editors.hasActiveEditor();
+                undo.setEnabled(editors.canUndoActive());
+                redo.setEnabled(editors.canRedoActive());
+                copy.setEnabled(hasEditor);
+                paste.setEnabled(hasEditor);
+            }
+
+            @Override
+            public void menuDeselected(MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(MenuEvent e) {
+            }
+        });
+
+        edit.add(undo);
+        edit.add(redo);
+        edit.addSeparator();
+        edit.add(copy);
+        edit.add(paste);
+        return edit;
     }
 
     private void openDirectory() {

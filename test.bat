@@ -31,5 +31,11 @@ if errorlevel 1 (
   exit /b 1
 )
 
+java -cp out lide.EditActionsTest
+if errorlevel 1 (
+  echo Tests failed.
+  exit /b 1
+)
+
 echo All tests passed.
 endlocal

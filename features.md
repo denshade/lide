@@ -19,6 +19,7 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 ## Editing
 
 - The editor shows line numbers and applies deferred syntax highlighting for supported languages (Java, JavaScript/TypeScript, Python, XML/HTML, and plain text).
+- **Edit** menu supports **Undo** (Ctrl+Z), **Redo** (Ctrl+Y), **Copy** (Ctrl+C), and **Paste** (Ctrl+V) on the active tab.
 - **Ctrl+click** a class/type name to jump to its source file in the open project (uses imports and same-package lookup for Java; searches the project tree for a matching file name).
 - Holding Ctrl over a navigable class name shows a hand cursor.
 - **File → Save** / **Save All** (with keyboard shortcuts) write changes to disk.

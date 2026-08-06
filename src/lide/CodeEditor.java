@@ -24,6 +24,8 @@ import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.UndoableEditEvent;
+import javax.swing.event.UndoableEditListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Element;
 import javax.swing.text.StyledDocument;
@@ -31,6 +33,7 @@ import javax.swing.text.TabSet;
 import javax.swing.text.TabStop;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
+import javax.swing.undo.UndoManager;
 
 /**
  * Code editor with line numbers and deferred syntax highlighting.
@@ -39,6 +42,7 @@ public final class CodeEditor extends JPanel {
     private final JTextPane textPane;
     private final LineNumberGutter gutter;
     private final SyntaxHighlighter highlighter = new SyntaxHighlighter();
+    private final UndoManager undoManager = new UndoManager();
     private final AtomicBoolean highlightPending = new AtomicBoolean(false);
 
     private Path filePath;
@@ -88,6 +92,14 @@ public final class CodeEditor extends JPanel {
             @Override
             public void changedUpdate(DocumentEvent e) {
                 // Attribute changes from highlighting — ignore.
+            }
+        });
+        textPane.getDocument().addUndoableEditListener(new UndoableEditListener() {
+            @Override
+            public void undoableEditHappened(UndoableEditEvent e) {
+                if (!applyingHighlight) {
+                    undoManager.addEdit(e.getEdit());
+                }
             }
         });
 
@@ -193,6 +205,7 @@ public final class CodeEditor extends JPanel {
         } finally {
             applyingHighlight = false;
         }
+        undoManager.discardAllEdits();
         dirty = false;
         scheduleHighlight();
         gutter.repaint();
@@ -222,10 +235,43 @@ public final class CodeEditor extends JPanel {
         } finally {
             applyingHighlight = false;
         }
+        undoManager.discardAllEdits();
         dirty = false;
         scheduleHighlight();
         gutter.repaint();
         notifyDirty();
+    }
+
+    public boolean canUndo() {
+        return undoManager.canUndo();
+    }
+
+    public boolean canRedo() {
+        return undoManager.canRedo();
+    }
+
+    public void undo() {
+        if (undoManager.canUndo()) {
+            undoManager.undo();
+        }
+    }
+
+    public void redo() {
+        if (undoManager.canRedo()) {
+            undoManager.redo();
+        }
+    }
+
+    public void copy() {
+        textPane.copy();
+    }
+
+    public void paste() {
+        textPane.paste();
+    }
+
+    public String getText() {
+        return textPane.getText();
     }
 
     public void save() throws Exception {
