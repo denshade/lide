@@ -11,5 +11,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Build OK. Run with: run.bat
+if not exist out\lide\icons mkdir out\lide\icons
+if exist src\lide\icons\*.png (
+  copy /y src\lide\icons\*.png out\lide\icons\ >nul
+)
+
+echo Build OK. Run with: run.bat  or  Lide.lnk
 endlocal

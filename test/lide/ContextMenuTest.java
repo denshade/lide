@@ -27,6 +27,7 @@ public final class ContextMenuTest {
             testProjectTreeFileMenu();
             testProjectTreeDirectoryMenu();
             testClickInactiveTabSelectsIt();
+            testTabCloseUsesXIcon();
         });
         System.out.println("Passed: " + passed + ", Failed: " + failed);
         if (failed > 0) {
@@ -112,6 +113,23 @@ public final class ContextMenuTest {
 
         assertEqual("inactive tab selected", 0, pane.getSelectedTabIndex());
         assertEqual("first editor shown", first, pane.getActiveEditor());
+    }
+
+    private static void testTabCloseUsesXIcon() {
+        EditorTabPane pane = new EditorTabPane();
+        pane.openUntitled("a.txt", "a", Language.PLAIN);
+        java.awt.Component header = pane.getTabHeaderAt(0);
+        assertTrue("header is panel", header instanceof javax.swing.JPanel);
+        javax.swing.JButton close = null;
+        for (java.awt.Component child : ((javax.swing.JPanel) header).getComponents()) {
+            if (child instanceof javax.swing.JButton button) {
+                close = button;
+                break;
+            }
+        }
+        assertTrue("close button present", close != null);
+        assertTrue("close uses icon", close.getIcon() instanceof EditorTabPane.TabCloseIcon);
+        assertTrue("close has no text label", close.getText() == null || close.getText().isEmpty());
     }
 
     private static void assertEqual(String label, Object expected, Object actual) {

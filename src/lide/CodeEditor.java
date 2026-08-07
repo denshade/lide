@@ -218,8 +218,10 @@ public final class CodeEditor extends JPanel {
         textPane.setCaretPosition(caret);
         textPane.requestFocusInWindow();
         try {
-            Rectangle view = textPane.modelToView2D(caret).getBounds();
-            textPane.scrollRectToVisible(view);
+            var shape = textPane.modelToView2D(caret);
+            if (shape != null) {
+                textPane.scrollRectToVisible(shape.getBounds());
+            }
         } catch (BadLocationException ignored) {
             // Caret is still set.
         }
@@ -272,6 +274,39 @@ public final class CodeEditor extends JPanel {
 
     public String getText() {
         return textPane.getText();
+    }
+
+    public String getSelectedText() {
+        return textPane.getSelectedText();
+    }
+
+    public int getCaretPosition() {
+        return textPane.getCaretPosition();
+    }
+
+    public int getSelectionStart() {
+        return textPane.getSelectionStart();
+    }
+
+    public int getSelectionEnd() {
+        return textPane.getSelectionEnd();
+    }
+
+    public void selectRange(int start, int end) {
+        int length = textPane.getDocument().getLength();
+        int from = Math.max(0, Math.min(start, length));
+        int to = Math.max(0, Math.min(end, length));
+        textPane.requestFocusInWindow();
+        textPane.setCaretPosition(from);
+        textPane.moveCaretPosition(to);
+        try {
+            var shape = textPane.modelToView2D(from);
+            if (shape != null) {
+                textPane.scrollRectToVisible(shape.getBounds());
+            }
+        } catch (BadLocationException ignored) {
+            // Selection is still applied.
+        }
     }
 
     public void save() throws Exception {

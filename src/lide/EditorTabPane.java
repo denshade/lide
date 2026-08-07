@@ -5,6 +5,10 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.BasicStroke;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.nio.file.Path;
@@ -12,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -28,6 +33,8 @@ public final class EditorTabPane extends JPanel {
     private final JTabbedPane tabs = new JTabbedPane();
     private final Map<Path, CodeEditor> openEditors = new HashMap<>();
     private final JLabel emptyLabel;
+    private final FindBar findBar = new FindBar();
+    private final JPanel contentHost = new JPanel(new BorderLayout());
     private Runnable statusUpdater = () -> {
     };
     private java.util.function.Supplier<Path> projectRootSupplier = () -> null;
@@ -61,6 +68,14 @@ public final class EditorTabPane extends JPanel {
             }
         });
 
+        findBar.setOnNext(this::findNext);
+        findBar.setOnPrevious(this::findPrevious);
+        findBar.setOnQueryChanged(this::findFromQueryChange);
+        findBar.setOnClose(this::hideFind);
+
+        contentHost.setBackground(IdeTheme.BG);
+        add(findBar, BorderLayout.NORTH);
+        add(contentHost, BorderLayout.CENTER);
         showEmpty();
     }
 
@@ -191,6 +206,129 @@ public final class EditorTabPane extends JPanel {
 
     public boolean hasActiveEditor() {
         return getActiveEditor() != null;
+    }
+
+    public void showFind() {
+        CodeEditor editor = getActiveEditor();
+        if (editor == null) {
+            return;
+        }
+        String selected = editor.getSelectedText();
+        if (selected != null && !selected.isEmpty() && !selected.contains("\n")) {
+            findBar.setQuery(selected);
+        }
+        findBar.setVisible(true);
+        revalidate();
+        repaint();
+        findBar.focusQuery();
+        findFromQueryChange();
+    }
+
+    public void hideFind() {
+        findBar.setVisible(false);
+        findBar.setStatus(" ");
+        revalidate();
+        repaint();
+        CodeEditor editor = getActiveEditor();
+        if (editor != null) {
+            editor.getTextPane().requestFocusInWindow();
+        }
+    }
+
+    public boolean isFindVisible() {
+        return findBar.isVisible();
+    }
+
+    public boolean findNext() {
+        return find(true);
+    }
+
+    public boolean findPrevious() {
+        return find(false);
+    }
+
+    private void findFromQueryChange() {
+        CodeEditor editor = getActiveEditor();
+        if (editor == null) {
+            findBar.setStatus("No file open");
+            return;
+        }
+        String query = findBar.getQuery();
+        if (query.isEmpty()) {
+            findBar.setStatus(" ");
+            return;
+        }
+        int from = editor.getSelectionStart();
+        int index = TextFinder.findNext(
+                editor.getText(), query, from, findBar.isMatchCase());
+        applyFindResult(editor, query, index);
+    }
+
+    private boolean find(boolean forward) {
+        CodeEditor editor = getActiveEditor();
+        if (editor == null) {
+            findBar.setStatus("No file open");
+            return false;
+        }
+        if (!findBar.isVisible()) {
+            showFind();
+            return true;
+        }
+        String query = findBar.getQuery();
+        if (query.isEmpty()) {
+            findBar.setStatus("Enter search text");
+            findBar.focusQuery();
+            return false;
+        }
+        String text = editor.getText();
+        int index;
+        if (forward) {
+            int from = editor.getSelectionEnd();
+            if (editor.getSelectionStart() == editor.getSelectionEnd()) {
+                from = editor.getCaretPosition();
+            }
+            index = TextFinder.findNext(text, query, from, findBar.isMatchCase());
+        } else {
+            int before = editor.getSelectionStart();
+            if (editor.getSelectionStart() == editor.getSelectionEnd()) {
+                before = editor.getCaretPosition();
+            }
+            index = TextFinder.findPrevious(text, query, before, findBar.isMatchCase());
+        }
+        return applyFindResult(editor, query, index);
+    }
+
+    private boolean applyFindResult(CodeEditor editor, String query, int index) {
+        int total = TextFinder.countMatches(editor.getText(), query, findBar.isMatchCase());
+        if (index < 0) {
+            findBar.setStatus("No results");
+            return false;
+        }
+        editor.selectRange(index, index + query.length());
+        int occurrence = occurrenceNumber(editor.getText(), query, index, findBar.isMatchCase());
+        findBar.setStatus(occurrence + " of " + total);
+        return true;
+    }
+
+    static int occurrenceNumber(String text, String query, int matchIndex, boolean matchCase) {
+        if (query == null || query.isEmpty() || matchIndex < 0) {
+            return 0;
+        }
+        int count = 0;
+        int from = 0;
+        while (from <= matchIndex) {
+            int index = TextFinder.findNext(text, query, from, matchCase);
+            // findNext wraps; ignore wrapped results past the scan window.
+            if (index < 0 || index < from || index > matchIndex) {
+                break;
+            }
+            count++;
+            if (index == matchIndex) {
+                return count;
+            }
+            from = index + Math.max(1, query.length());
+        }
+        return count;
     }
 
     public boolean saveActive() {
@@ -366,20 +504,20 @@ public final class EditorTabPane extends JPanel {
     }
 
     private void showEmpty() {
-        removeAll();
-        add(emptyLabel, BorderLayout.CENTER);
-        revalidate();
-        repaint();
+        contentHost.removeAll();
+        contentHost.add(emptyLabel, BorderLayout.CENTER);
+        contentHost.revalidate();
+        contentHost.repaint();
     }
 
     private void showTabs() {
-        if (getComponentCount() == 1 && getComponent(0) == tabs) {
+        if (contentHost.getComponentCount() == 1 && contentHost.getComponent(0) == tabs) {
             return;
         }
-        removeAll();
-        add(tabs, BorderLayout.CENTER);
-        revalidate();
-        repaint();
+        contentHost.removeAll();
+        contentHost.add(tabs, BorderLayout.CENTER);
+        contentHost.revalidate();
+        contentHost.repaint();
     }
 
     private static final class TabHeader extends JPanel {
@@ -391,14 +529,15 @@ public final class EditorTabPane extends JPanel {
             titleLabel = new JLabel(title);
             titleLabel.setFont(IdeTheme.UI_FONT.deriveFont(Font.PLAIN, 12f));
             titleLabel.setForeground(IdeTheme.FG);
-            JButton close = new JButton("×");
-            close.setFont(IdeTheme.UI_FONT.deriveFont(Font.BOLD, 12f));
-            close.setMargin(new java.awt.Insets(0, 4, 0, 4));
-            close.setPreferredSize(new Dimension(18, 18));
+            JButton close = new JButton(new TabCloseIcon(IdeTheme.FG_DIM));
+            close.setToolTipText("Close");
+            close.setMargin(new java.awt.Insets(0, 0, 0, 0));
+            close.setPreferredSize(new Dimension(16, 16));
+            close.setMaximumSize(new Dimension(16, 16));
             close.setFocusable(false);
             close.setBorderPainted(false);
             close.setContentAreaFilled(false);
-            close.setForeground(IdeTheme.FG_DIM);
+            close.setOpaque(false);
             close.addActionListener(e -> onClose.run());
             add(titleLabel);
             add(close);
@@ -441,6 +580,48 @@ public final class EditorTabPane extends JPanel {
 
         void setTitle(String title) {
             titleLabel.setText(title);
+        }
+    }
+
+    /**
+     * Painted X used for tab close buttons so we don't depend on font glyphs.
+     */
+    static final class TabCloseIcon implements Icon {
+        private final java.awt.Color color;
+        private final int size;
+
+        TabCloseIcon(java.awt.Color color) {
+            this(color, 10);
+        }
+
+        TabCloseIcon(java.awt.Color color, int size) {
+            this.color = color;
+            this.size = size;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int pad = 1;
+                g2.drawLine(x + pad, y + pad, x + size - pad - 1, y + size - pad - 1);
+                g2.drawLine(x + size - pad - 1, y + pad, x + pad, y + size - pad - 1);
+            } finally {
+                g2.dispose();
+            }
+        }
+
+        @Override
+        public int getIconWidth() {
+            return size;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return size;
         }
     }
 }
