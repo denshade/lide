@@ -30,5 +30,6 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 ## Window chrome
 
 - Dark IntelliJ-inspired theme for the tree, tabs, editor, and menus.
+- Menus use a compact layout without the Windows checkmark gutter on the left.
 - Status bar shows the active file path, language, and modified state.
 - Application icons appear on the window and taskbar; run `create-launcher.bat` to generate `assets/lide.ico` and a `Lide.lnk` shortcut that launches the IDE with that icon.

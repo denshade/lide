@@ -1,11 +1,16 @@
 package lide;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Insets;
 import javax.swing.BorderFactory;
+import javax.swing.Icon;
 import javax.swing.UIManager;
 import javax.swing.plaf.ColorUIResource;
 import javax.swing.plaf.FontUIResource;
+import javax.swing.plaf.InsetsUIResource;
 
 /**
  * IntelliJ-inspired dark theme applied to Swing UI defaults.
@@ -37,24 +42,30 @@ public final class IdeTheme {
     public static final Font EDITOR_FONT = new Font(Font.MONOSPACED, Font.PLAIN, 14);
     public static final Font TREE_FONT = new Font("Segoe UI", Font.PLAIN, 13);
 
+    /** Zero-size icon so menus do not reserve a checkmark/icon column. */
+    static final Icon EMPTY_MENU_ICON = new Icon() {
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+        }
+
+        @Override
+        public int getIconWidth() {
+            return 0;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return 0;
+        }
+    };
+
     public static void apply() {
         UIManager.put("Panel.background", new ColorUIResource(BG));
         UIManager.put("Panel.foreground", new ColorUIResource(FG));
         UIManager.put("Label.foreground", new ColorUIResource(FG));
         UIManager.put("Label.background", new ColorUIResource(BG));
 
-        UIManager.put("MenuBar.background", new ColorUIResource(BG_RAISED));
-        UIManager.put("MenuBar.foreground", new ColorUIResource(FG));
-        UIManager.put("Menu.background", new ColorUIResource(BG_RAISED));
-        UIManager.put("Menu.foreground", new ColorUIResource(FG));
-        UIManager.put("Menu.selectionBackground", new ColorUIResource(SELECTION));
-        UIManager.put("Menu.selectionForeground", new ColorUIResource(Color.WHITE));
-        UIManager.put("MenuItem.background", new ColorUIResource(BG_RAISED));
-        UIManager.put("MenuItem.foreground", new ColorUIResource(FG));
-        UIManager.put("MenuItem.selectionBackground", new ColorUIResource(SELECTION));
-        UIManager.put("MenuItem.selectionForeground", new ColorUIResource(Color.WHITE));
-        UIManager.put("PopupMenu.background", new ColorUIResource(BG_RAISED));
-        UIManager.put("PopupMenu.border", BorderFactory.createLineBorder(BORDER));
+        applyCompactMenus();
 
         UIManager.put("Tree.background", new ColorUIResource(BG_TREE));
         UIManager.put("Tree.foreground", new ColorUIResource(FG));
@@ -107,6 +118,55 @@ public final class IdeTheme {
         UIManager.put("FileChooser.background", new ColorUIResource(BG));
 
         UIManager.put("defaultFont", new FontUIResource(UI_FONT));
+    }
+
+    /**
+     * Windows L&F (especially on newer JDKs) reserves a wide left gutter for
+     * check/radio icons. Lide menus do not use those, so use basic menu UIs and
+     * zero-width check icons for tighter layout.
+     */
+    static void applyCompactMenus() {
+        UIManager.put("MenuItemUI", "javax.swing.plaf.basic.BasicMenuItemUI");
+        UIManager.put("MenuUI", "javax.swing.plaf.basic.BasicMenuUI");
+        UIManager.put("PopupMenuUI", "javax.swing.plaf.basic.BasicPopupMenuUI");
+        UIManager.put("CheckBoxMenuItemUI", "javax.swing.plaf.basic.BasicCheckBoxMenuItemUI");
+        UIManager.put("RadioButtonMenuItemUI", "javax.swing.plaf.basic.BasicRadioButtonMenuItemUI");
+        UIManager.put("PopupMenuSeparatorUI", "javax.swing.plaf.basic.BasicPopupMenuSeparatorUI");
+
+        UIManager.put("MenuBar.background", new ColorUIResource(BG_RAISED));
+        UIManager.put("MenuBar.foreground", new ColorUIResource(FG));
+        UIManager.put("MenuBar.border", BorderFactory.createEmptyBorder());
+        UIManager.put("Menu.background", new ColorUIResource(BG_RAISED));
+        UIManager.put("Menu.foreground", new ColorUIResource(FG));
+        UIManager.put("Menu.selectionBackground", new ColorUIResource(SELECTION));
+        UIManager.put("Menu.selectionForeground", new ColorUIResource(Color.WHITE));
+        UIManager.put("Menu.border", BorderFactory.createEmptyBorder(2, 6, 2, 6));
+        UIManager.put("Menu.margin", new InsetsUIResource(0, 0, 0, 0));
+        UIManager.put("Menu.acceleratorForeground", new ColorUIResource(FG_DIM));
+        UIManager.put("Menu.acceleratorSelectionForeground", new ColorUIResource(Color.WHITE));
+
+        UIManager.put("MenuItem.background", new ColorUIResource(BG_RAISED));
+        UIManager.put("MenuItem.foreground", new ColorUIResource(FG));
+        UIManager.put("MenuItem.selectionBackground", new ColorUIResource(SELECTION));
+        UIManager.put("MenuItem.selectionForeground", new ColorUIResource(Color.WHITE));
+        UIManager.put("MenuItem.acceleratorForeground", new ColorUIResource(FG_DIM));
+        UIManager.put("MenuItem.acceleratorSelectionForeground", new ColorUIResource(Color.WHITE));
+        UIManager.put("MenuItem.font", new FontUIResource(UI_FONT));
+        UIManager.put("MenuItem.acceleratorFont", new FontUIResource(UI_FONT));
+        UIManager.put("MenuItem.border", BorderFactory.createEmptyBorder());
+        UIManager.put("MenuItem.margin", new InsetsUIResource(3, 8, 3, 12));
+        UIManager.put("MenuItem.checkIcon", EMPTY_MENU_ICON);
+        UIManager.put("Menu.checkIcon", EMPTY_MENU_ICON);
+        UIManager.put("MenuItem.afterCheckIconGap", 0);
+        UIManager.put("MenuItem.checkIconOffset", 0);
+        UIManager.put("MenuItem.minimumTextOffset", 0);
+        UIManager.put("Menu.afterCheckIconGap", 0);
+        UIManager.put("Menu.checkIconOffset", 0);
+        UIManager.put("Menu.minimumTextOffset", 0);
+
+        UIManager.put("PopupMenu.background", new ColorUIResource(BG_RAISED));
+        UIManager.put("PopupMenu.border", BorderFactory.createLineBorder(BORDER));
+        UIManager.put("PopupMenu.borderInsets", new Insets(2, 2, 2, 2));
     }
 
     private IdeTheme() {

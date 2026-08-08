@@ -1,0 +1,84 @@
+package lide;
+
+import java.awt.GraphicsEnvironment;
+import javax.swing.Icon;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.plaf.basic.BasicMenuItemUI;
+
+/**
+ * Tests for compact menu spacing.
+ */
+public final class MenuSpacingTest {
+    private static int passed;
+    private static int failed;
+
+    public static void main(String[] args) throws Exception {
+        testCompactMenuDefaults();
+        if (!GraphicsEnvironment.isHeadless()) {
+            SwingUtilities.invokeAndWait(MenuSpacingTest::testMenuItemUsesBasicUiAndTightLeft);
+        }
+        System.out.println("Passed: " + passed + ", Failed: " + failed);
+        if (failed > 0) {
+            System.exit(1);
+        }
+    }
+
+    private static void testCompactMenuDefaults() {
+        IdeTheme.applyCompactMenus();
+        assertEqual("MenuItemUI", "javax.swing.plaf.basic.BasicMenuItemUI",
+                UIManager.get("MenuItemUI"));
+        Object checkIcon = UIManager.get("MenuItem.checkIcon");
+        assertTrue("check icon present", checkIcon instanceof Icon);
+        assertEqual("check icon width", 0, ((Icon) checkIcon).getIconWidth());
+        assertEqual("afterCheckIconGap", 0, UIManager.get("MenuItem.afterCheckIconGap"));
+        assertEqual("minimumTextOffset", 0, UIManager.get("MenuItem.minimumTextOffset"));
+    }
+
+    private static void testMenuItemUsesBasicUiAndTightLeft() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {
+        }
+        IdeTheme.apply();
+
+        JMenuBar bar = new JMenuBar();
+        JMenu file = new JMenu("File");
+        JMenuItem open = new JMenuItem("Open Directory…");
+        file.add(open);
+        bar.add(file);
+
+        assertTrue("uses basic menu item UI", open.getUI() instanceof BasicMenuItemUI);
+
+        // Preferred width should stay close to text width (no large check gutter).
+        int textWidth = open.getFontMetrics(open.getFont()).stringWidth(open.getText());
+        int itemWidth = open.getPreferredSize().width;
+        int gutter = itemWidth - textWidth;
+        assertTrue("left gutter reasonable (< 40px beyond text+padding), was " + gutter,
+                gutter < 40);
+    }
+
+    private static void assertEqual(String label, Object expected, Object actual) {
+        if (expected == null ? actual == null : expected.equals(actual)) {
+            passed++;
+            return;
+        }
+        failed++;
+        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
+    }
+
+    private static void assertTrue(String label, boolean condition) {
+        if (condition) {
+            passed++;
+            return;
+        }
+        failed++;
+        System.err.println("FAIL " + label);
+    }
+
+    private MenuSpacingTest() {
+    }
+}
