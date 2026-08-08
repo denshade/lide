@@ -27,6 +27,7 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.UndoableEditEvent;
 import javax.swing.event.UndoableEditListener;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultCaret;
 import javax.swing.text.Element;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.TabSet;
@@ -67,6 +68,15 @@ public final class CodeEditor extends JPanel {
         textPane.setSelectionColor(IdeTheme.SELECTION);
         textPane.setSelectedTextColor(java.awt.Color.WHITE);
         textPane.setBorder(javax.swing.BorderFactory.createEmptyBorder(4, 8, 4, 8));
+        // Keep find matches visible while the find bar (not the editor) has focus.
+        DefaultCaret caret = new DefaultCaret() {
+            @Override
+            public void setSelectionVisible(boolean visible) {
+                super.setSelectionVisible(true);
+            }
+        };
+        caret.setBlinkRate(textPane.getCaret().getBlinkRate());
+        textPane.setCaret(caret);
         configureTabs(textPane);
 
         gutter = new LineNumberGutter(textPane);
@@ -296,9 +306,10 @@ public final class CodeEditor extends JPanel {
         int length = textPane.getDocument().getLength();
         int from = Math.max(0, Math.min(start, length));
         int to = Math.max(0, Math.min(end, length));
-        textPane.requestFocusInWindow();
+        // Do not request focus: find-as-you-type must keep the find bar focused.
         textPane.setCaretPosition(from);
         textPane.moveCaretPosition(to);
+        textPane.getCaret().setSelectionVisible(true);
         try {
             var shape = textPane.modelToView2D(from);
             if (shape != null) {

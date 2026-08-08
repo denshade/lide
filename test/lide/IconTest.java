@@ -1,10 +1,17 @@
 package lide;
 
 import java.awt.GraphicsEnvironment;
+import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.SwingUtilities;
 
 /**
@@ -18,8 +25,10 @@ public final class IconTest {
         testRenderSizes();
         testWriteIcoAndPng();
         testLoadWindowIcons();
+        testDialogIcon();
         if (!GraphicsEnvironment.isHeadless()) {
             SwingUtilities.invokeAndWait(IconTest::testMainFrameHasIcons);
+            SwingUtilities.invokeAndWait(IconTest::testAboutMenuItemUsesAppIcon);
         }
         System.out.println("Passed: " + passed + ", Failed: " + failed);
         if (failed > 0) {
@@ -63,6 +72,82 @@ public final class IconTest {
         List<Image> icons = AppIcons.loadWindowIcons();
         assertTrue("icons loaded", !icons.isEmpty());
         assertTrue("first icon sized", icons.get(0).getWidth(null) > 0);
+    }
+
+    private static void testDialogIcon() {
+        Icon icon = AppIcons.dialogIcon(MainFrame.ABOUT_ICON_SIZE);
+        assertTrue("dialog icon present", icon != null);
+        assertEqual("dialog icon width", MainFrame.ABOUT_ICON_SIZE, icon.getIconWidth());
+        assertEqual("dialog icon height", MainFrame.ABOUT_ICON_SIZE, icon.getIconHeight());
+
+        BufferedImage rendered = toImage(icon);
+        Image appIcon = null;
+        for (Image candidate : AppIcons.loadWindowIcons()) {
+            if (candidate.getWidth(null) == MainFrame.ABOUT_ICON_SIZE) {
+                appIcon = candidate;
+                break;
+            }
+        }
+        assertTrue("app icon at dialog size available", appIcon != null);
+        if (appIcon == null) {
+            return;
+        }
+        BufferedImage expected = toImage(new ImageIcon(appIcon));
+        boolean identical = true;
+        for (int y = 0; y < expected.getHeight() && identical; y++) {
+            for (int x = 0; x < expected.getWidth(); x++) {
+                if (expected.getRGB(x, y) != rendered.getRGB(x, y)) {
+                    identical = false;
+                    break;
+                }
+            }
+        }
+        assertTrue("dialog icon matches application icon", identical);
+    }
+
+    private static BufferedImage toImage(Icon icon) {
+        BufferedImage image = new BufferedImage(
+                icon.getIconWidth(), icon.getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            icon.paintIcon(null, g, 0, 0);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
+    private static void testAboutMenuItemUsesAppIcon() {
+        MainFrame frame = new MainFrame();
+        try {
+            JMenuItem about = findMenuItem(frame.getJMenuBar(), "About Lide");
+            assertTrue("about menu item exists", about != null);
+            Icon icon = MainFrame.aboutDialogIcon();
+            assertTrue("about dialog icon present", icon != null);
+            assertEqual("about dialog icon size", MainFrame.ABOUT_ICON_SIZE,
+                    icon == null ? -1 : icon.getIconWidth());
+        } finally {
+            frame.dispose();
+        }
+    }
+
+    private static JMenuItem findMenuItem(JMenuBar bar, String text) {
+        if (bar == null) {
+            return null;
+        }
+        for (int i = 0; i < bar.getMenuCount(); i++) {
+            JMenu menu = bar.getMenu(i);
+            if (menu == null) {
+                continue;
+            }
+            for (int j = 0; j < menu.getItemCount(); j++) {
+                JMenuItem item = menu.getItem(j);
+                if (item != null && text.equals(item.getText())) {
+                    return item;
+                }
+            }
+        }
+        return null;
     }
 
     private static void testMainFrameHasIcons() {

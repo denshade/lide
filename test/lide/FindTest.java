@@ -1,6 +1,7 @@
 package lide;
 
 import java.awt.GraphicsEnvironment;
+import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
 /**
@@ -19,7 +20,10 @@ public final class FindTest {
         if (GraphicsEnvironment.isHeadless()) {
             System.out.println("SKIP: headless environment cannot run editor find tests");
         } else {
-            SwingUtilities.invokeAndWait(FindTest::testEditorFindBar);
+            SwingUtilities.invokeAndWait(() -> {
+                testEditorFindBar();
+                testFindHighlightDoesNotStealFocus();
+            });
         }
         System.out.println("Passed: " + passed + ", Failed: " + failed);
         if (failed > 0) {
@@ -79,6 +83,41 @@ public final class FindTest {
 
         pane.hideFind();
         assertTrue("find hidden again", !pane.isFindVisible());
+    }
+
+    private static void testFindHighlightDoesNotStealFocus() {
+        JFrame frame = new JFrame("Find focus test");
+        try {
+            javax.swing.JTextField other = new javax.swing.JTextField();
+            EditorTabPane pane = new EditorTabPane();
+            frame.setLayout(new java.awt.BorderLayout());
+            frame.add(other, java.awt.BorderLayout.NORTH);
+            frame.add(pane, java.awt.BorderLayout.CENTER);
+            frame.setSize(640, 480);
+            frame.setVisible(true);
+
+            pane.openUntitled("f.txt", "foo bar foo", Language.PLAIN);
+            pane.showFind();
+
+            other.requestFocusInWindow();
+            boolean otherHadFocus = other.isFocusOwner();
+
+            // Typing in the find box triggers this path and must not move focus to the editor.
+            pane.findBar().setQuery("foo");
+
+            assertEqual("matched", "foo", pane.getActiveEditor().getSelectedText());
+            assertTrue(
+                    "editor must not steal focus on find highlight",
+                    !pane.getActiveEditor().getTextPane().isFocusOwner());
+            assertTrue(
+                    "selection stays visible without editor focus",
+                    pane.getActiveEditor().getTextPane().getCaret().isSelectionVisible());
+            if (otherHadFocus) {
+                assertTrue("external focus retained after highlight", other.isFocusOwner());
+            }
+        } finally {
+            frame.dispose();
+        }
     }
 
     private static void assertEqual(String label, Object expected, Object actual) {

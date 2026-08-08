@@ -134,12 +134,14 @@ public final class FindBar extends JPanel {
 
     private static void styleButton(JButton button) {
         button.setFont(IdeTheme.UI_FONT);
-        button.setBackground(IdeTheme.BG);
-        button.setForeground(IdeTheme.FG);
         button.setFocusable(false);
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(IdeTheme.BORDER),
                 BorderFactory.createEmptyBorder(2, 8, 2, 8)));
+        button.addPropertyChangeListener("enabled", e -> ScriptsPanel.applyButtonColors(button));
+        ScriptsPanel.applyButtonColors(button);
     }
 
     public void setOnNext(Runnable onNext) {

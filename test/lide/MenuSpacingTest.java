@@ -28,7 +28,7 @@ public final class MenuSpacingTest {
     }
 
     private static void testCompactMenuDefaults() {
-        IdeTheme.applyCompactMenus();
+        IdeTheme.apply();
         assertEqual("MenuItemUI", "javax.swing.plaf.basic.BasicMenuItemUI",
                 UIManager.get("MenuItemUI"));
         Object checkIcon = UIManager.get("MenuItem.checkIcon");
@@ -36,6 +36,10 @@ public final class MenuSpacingTest {
         assertEqual("check icon width", 0, ((Icon) checkIcon).getIconWidth());
         assertEqual("afterCheckIconGap", 0, UIManager.get("MenuItem.afterCheckIconGap"));
         assertEqual("minimumTextOffset", 0, UIManager.get("MenuItem.minimumTextOffset"));
+        assertEqual("disabled fg", IdeTheme.FG_DISABLED.getRGB(),
+                UIManager.getColor("MenuItem.disabledForeground").getRGB());
+        assertEqual("button disabled text", IdeTheme.FG_DISABLED.getRGB(),
+                UIManager.getColor("Button.disabledText").getRGB());
     }
 
     private static void testMenuItemUsesBasicUiAndTightLeft() {
@@ -48,10 +52,14 @@ public final class MenuSpacingTest {
         JMenuBar bar = new JMenuBar();
         JMenu file = new JMenu("File");
         JMenuItem open = new JMenuItem("Open Directory…");
+        JMenuItem disabled = new JMenuItem("Disabled");
+        disabled.setEnabled(false);
         file.add(open);
+        file.add(disabled);
         bar.add(file);
 
         assertTrue("uses basic menu item UI", open.getUI() instanceof BasicMenuItemUI);
+        assertEqual("enabled foreground", IdeTheme.FG, open.getForeground());
 
         // Preferred width should stay close to text width (no large check gutter).
         int textWidth = open.getFontMetrics(open.getFont()).stringWidth(open.getText());
@@ -59,6 +67,13 @@ public final class MenuSpacingTest {
         int gutter = itemWidth - textWidth;
         assertTrue("left gutter reasonable (< 40px beyond text+padding), was " + gutter,
                 gutter < 40);
+
+        assertTrue("disabled fg darker than enabled",
+                luminance(IdeTheme.FG_DISABLED) < luminance(IdeTheme.FG));
+    }
+
+    private static double luminance(java.awt.Color c) {
+        return 0.2126 * c.getRed() + 0.7152 * c.getGreen() + 0.0722 * c.getBlue();
     }
 
     private static void assertEqual(String label, Object expected, Object actual) {

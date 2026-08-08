@@ -10,6 +10,7 @@ import java.awt.event.WindowEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import javax.swing.Icon;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -28,10 +29,13 @@ import javax.swing.event.MenuListener;
  * Main IDE window: project tree + tabbed syntax-highlighted editor.
  */
 public final class MainFrame extends JFrame {
+    static final int ABOUT_ICON_SIZE = 64;
+
     private final ProjectTreePanel projectTree = new ProjectTreePanel();
     private final EditorTabPane editors = new EditorTabPane();
     private final JLabel statusLabel = new JLabel("Ready");
     private final ProjectHistory projectHistory = new ProjectHistory();
+    private ScriptsPanel scriptsPanel;
     private JMenu openRecentMenu;
 
     public MainFrame() {
@@ -46,11 +50,20 @@ public final class MainFrame extends JFrame {
         editors.setStatusUpdater(this::updateStatus);
         editors.setProjectRootSupplier(projectTree::getProjectRoot);
 
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, projectTree, editors);
-        split.setDividerLocation(260);
-        split.setResizeWeight(0.18);
-        split.setBorder(null);
-        split.setBackground(IdeTheme.BG);
+        JSplitPane editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, projectTree, editors);
+        editorSplit.setDividerLocation(260);
+        editorSplit.setResizeWeight(0.18);
+        editorSplit.setBorder(null);
+        editorSplit.setBackground(IdeTheme.BG);
+
+        ScriptsPanel scriptsPanel = new ScriptsPanel();
+        this.scriptsPanel = scriptsPanel;
+
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorSplit, scriptsPanel);
+        mainSplit.setResizeWeight(0.78);
+        mainSplit.setDividerLocation(560);
+        mainSplit.setBorder(null);
+        mainSplit.setBackground(IdeTheme.BG);
 
         JPanel statusBar = new JPanel(new BorderLayout());
         statusBar.setBackground(IdeTheme.BG_RAISED);
@@ -61,7 +74,7 @@ public final class MainFrame extends JFrame {
 
         setJMenuBar(buildMenuBar());
         setIconImages(AppIcons.loadWindowIcons());
-        add(split, BorderLayout.CENTER);
+        add(mainSplit, BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
 
         addWindowListener(new WindowAdapter() {
@@ -140,18 +153,27 @@ public final class MainFrame extends JFrame {
         JMenu view = new JMenu("View");
         view.setMnemonic(KeyEvent.VK_V);
         JMenuItem about = new JMenuItem("About Lide");
-        about.addActionListener(e -> JOptionPane.showMessageDialog(
-                this,
-                "Lide — a lightweight Java IDE\n"
-                        + "Open a project directory, browse files, and edit with syntax highlighting.",
-                "About Lide",
-                JOptionPane.INFORMATION_MESSAGE));
+        about.addActionListener(e -> showAboutDialog());
         view.add(about);
 
         bar.add(file);
         bar.add(edit);
         bar.add(view);
         return bar;
+    }
+
+    private void showAboutDialog() {
+        JOptionPane.showMessageDialog(
+                this,
+                "Lide — a lightweight Java IDE\n"
+                        + "Open a project directory, browse files, and edit with syntax highlighting.",
+                "About Lide",
+                JOptionPane.INFORMATION_MESSAGE,
+                aboutDialogIcon());
+    }
+
+    static Icon aboutDialogIcon() {
+        return AppIcons.dialogIcon(ABOUT_ICON_SIZE);
     }
 
     private void rebuildOpenRecentMenu() {
@@ -282,6 +304,7 @@ public final class MainFrame extends JFrame {
         }
         projectTree.openDirectory(dir);
         projectHistory.remember(dir);
+        scriptsPanel.setProjectRoot(dir);
         rebuildOpenRecentMenu();
         setTitle("Lide — " + (dir.getFileName() != null ? dir.getFileName() : dir));
         statusLabel.setText("Opened project: " + dir);
@@ -303,17 +326,23 @@ public final class MainFrame extends JFrame {
 
     private void updateStatus() {
         CodeEditor editor = editors.getActiveEditor();
-        if (editor == null || editor.getFilePath() == null) {
-            Path root = projectTree.getProjectRoot();
-            statusLabel.setText(root != null
-                    ? "Project: " + root.toAbsolutePath()
-                    : "Ready — open a directory to get started");
+        if (editor != null && editor.getFilePath() != null) {
+            String dirty = editor.isDirty() ? " • modified" : "";
+            Language lang = Language.fromPath(editor.getFilePath());
+            statusLabel.setText(editor.getFilePath().toAbsolutePath()
+                    + "  |  " + lang.name() + dirty);
             return;
         }
-        String dirty = editor.isDirty() ? " • modified" : "";
-        Language lang = Language.fromPath(editor.getFilePath());
-        statusLabel.setText(editor.getFilePath().toAbsolutePath()
-                + "  |  " + lang.name() + dirty);
+        BinaryViewer binary = editors.getActiveBinaryViewer();
+        if (binary != null && binary.getFilePath() != null) {
+            statusLabel.setText(binary.getFilePath().toAbsolutePath()
+                    + "  |  binary  |  " + binary.getFileSize() + " bytes");
+            return;
+        }
+        Path root = projectTree.getProjectRoot();
+        statusLabel.setText(root != null
+                ? "Project: " + root.toAbsolutePath()
+                : "Ready — open a directory to get started");
     }
 
     private void exitIde() {

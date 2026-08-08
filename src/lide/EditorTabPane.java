@@ -32,6 +32,7 @@ import javax.swing.SwingConstants;
 public final class EditorTabPane extends JPanel {
     private final JTabbedPane tabs = new JTabbedPane();
     private final Map<Path, CodeEditor> openEditors = new HashMap<>();
+    private final Map<Path, BinaryViewer> openBinary = new HashMap<>();
     private final JLabel emptyLabel;
     private final FindBar findBar = new FindBar();
     private final JPanel contentHost = new JPanel(new BorderLayout());
@@ -93,14 +94,38 @@ public final class EditorTabPane extends JPanel {
 
     public void openFile(Path path, int caretOffset) {
         Path normalized = path.toAbsolutePath().normalize();
-        CodeEditor existing = openEditors.get(normalized);
-        if (existing != null) {
-            tabs.setSelectedComponent(existing);
+        CodeEditor existingEditor = openEditors.get(normalized);
+        if (existingEditor != null) {
+            tabs.setSelectedComponent(existingEditor);
             showTabs();
             if (caretOffset >= 0) {
-                existing.goToOffset(caretOffset);
+                existingEditor.goToOffset(caretOffset);
             }
             statusUpdater.run();
+            return;
+        }
+        BinaryViewer existingBinary = openBinary.get(normalized);
+        if (existingBinary != null) {
+            tabs.setSelectedComponent(existingBinary);
+            showTabs();
+            statusUpdater.run();
+            return;
+        }
+
+        byte[] bytes;
+        try {
+            bytes = java.nio.file.Files.readAllBytes(normalized);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Could not open file:\n" + ex.getMessage(),
+                    "Open Failed",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (BinaryDetector.isBinary(bytes)) {
+            openBinaryViewer(normalized, bytes);
             return;
         }
 
@@ -109,6 +134,11 @@ public final class EditorTabPane extends JPanel {
         try {
             editor.openFile(normalized);
         } catch (Exception ex) {
+            // UTF-8 decode or other text load failure — fall back to binary view.
+            if (looksLikeEncodingFailure(ex)) {
+                openBinaryViewer(normalized, bytes);
+                return;
+            }
             JOptionPane.showMessageDialog(
                     this,
                     "Could not open file:\n" + ex.getMessage(),
@@ -127,6 +157,37 @@ public final class EditorTabPane extends JPanel {
             editor.goToOffset(caretOffset);
         }
         statusUpdater.run();
+    }
+
+    private void openBinaryViewer(Path normalized, byte[] bytes) {
+        hideFind();
+        BinaryViewer viewer = new BinaryViewer();
+        viewer.setContent(normalized, bytes);
+        openBinary.put(normalized, viewer);
+        showTabs();
+        tabs.addTab(viewer.getTitle(), viewer);
+        int index = tabs.indexOfComponent(viewer);
+        tabs.setTabComponentAt(index, new TabHeader(viewer.getTitle(), () -> closeBinaryTab(viewer), this));
+        tabs.setSelectedComponent(viewer);
+        statusUpdater.run();
+    }
+
+    static boolean looksLikeEncodingFailure(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            if (t instanceof java.nio.charset.CharacterCodingException
+                    || t instanceof java.io.UncheckedIOException) {
+                return true;
+            }
+            String message = t.getMessage();
+            if (message != null) {
+                String lower = message.toLowerCase(java.util.Locale.ROOT);
+                if (lower.contains("malformed") || lower.contains("unmappable")
+                        || lower.contains("input length") || lower.contains("utf")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public void navigateTo(ClassNavigator.Target target) {
@@ -156,6 +217,23 @@ public final class EditorTabPane extends JPanel {
             return editor;
         }
         return null;
+    }
+
+    public BinaryViewer getActiveBinaryViewer() {
+        Component selected = tabs.getSelectedComponent();
+        if (selected instanceof BinaryViewer viewer) {
+            return viewer;
+        }
+        return null;
+    }
+
+    public boolean hasActiveEditor() {
+        return getActiveEditor() != null;
+    }
+
+    public boolean hasActiveFileTab() {
+        Component selected = tabs.getSelectedComponent();
+        return selected instanceof CodeEditor || selected instanceof BinaryViewer;
     }
 
     public boolean undoActive() {
@@ -204,10 +282,6 @@ public final class EditorTabPane extends JPanel {
         return editor != null && editor.canRedo();
     }
 
-    public boolean hasActiveEditor() {
-        return getActiveEditor() != null;
-    }
-
     public void showFind() {
         CodeEditor editor = getActiveEditor();
         if (editor == null) {
@@ -237,6 +311,11 @@ public final class EditorTabPane extends JPanel {
 
     public boolean isFindVisible() {
         return findBar.isVisible();
+    }
+
+    /** Package-private for tests. */
+    FindBar findBar() {
+        return findBar;
     }
 
     public boolean findNext() {
@@ -424,50 +503,82 @@ public final class EditorTabPane extends JPanel {
     JPopupMenu createTabContextMenu(int tabIndex) {
         JPopupMenu menu = new JPopupMenu();
         Component component = tabs.getComponentAt(tabIndex);
-        if (!(component instanceof CodeEditor editor)) {
+        if (component instanceof CodeEditor editor) {
+            JMenuItem close = new JMenuItem("Close");
+            close.addActionListener(e -> closeTab(editor));
+            menu.add(close);
+
+            JMenuItem closeOthers = new JMenuItem("Close Others");
+            closeOthers.setEnabled(tabs.getTabCount() > 1);
+            closeOthers.addActionListener(e -> closeOtherTabs(component));
+            menu.add(closeOthers);
+
+            JMenuItem closeAll = new JMenuItem("Close All");
+            closeAll.addActionListener(e -> closeAllTabs());
+            menu.add(closeAll);
             return menu;
         }
+        if (component instanceof BinaryViewer viewer) {
+            JMenuItem close = new JMenuItem("Close");
+            close.addActionListener(e -> closeBinaryTab(viewer));
+            menu.add(close);
 
-        JMenuItem close = new JMenuItem("Close");
-        close.addActionListener(e -> closeTab(editor));
-        menu.add(close);
+            JMenuItem closeOthers = new JMenuItem("Close Others");
+            closeOthers.setEnabled(tabs.getTabCount() > 1);
+            closeOthers.addActionListener(e -> closeOtherTabs(component));
+            menu.add(closeOthers);
 
-        JMenuItem closeOthers = new JMenuItem("Close Others");
-        closeOthers.setEnabled(tabs.getTabCount() > 1);
-        closeOthers.addActionListener(e -> closeOtherTabs(editor));
-        menu.add(closeOthers);
-
-        JMenuItem closeAll = new JMenuItem("Close All");
-        closeAll.addActionListener(e -> closeAllTabs());
-        menu.add(closeAll);
-
+            JMenuItem closeAll = new JMenuItem("Close All");
+            closeAll.addActionListener(e -> closeAllTabs());
+            menu.add(closeAll);
+        }
         return menu;
     }
 
-    void closeOtherTabs(CodeEditor keep) {
-        List<CodeEditor> toClose = new ArrayList<>();
+    void closeOtherTabs(Component keep) {
+        List<Component> toClose = new ArrayList<>();
         for (int i = 0; i < tabs.getTabCount(); i++) {
             Component component = tabs.getComponentAt(i);
-            if (component instanceof CodeEditor editor && editor != keep) {
-                toClose.add(editor);
+            if (component != keep) {
+                toClose.add(component);
             }
         }
-        for (CodeEditor editor : toClose) {
-            closeTab(editor);
+        for (Component component : toClose) {
+            closeComponentTab(component);
         }
     }
 
+    void closeOtherTabs(CodeEditor keep) {
+        closeOtherTabs((Component) keep);
+    }
+
     void closeAllTabs() {
-        List<CodeEditor> toClose = new ArrayList<>();
+        List<Component> toClose = new ArrayList<>();
         for (int i = 0; i < tabs.getTabCount(); i++) {
-            Component component = tabs.getComponentAt(i);
-            if (component instanceof CodeEditor editor) {
-                toClose.add(editor);
-            }
+            toClose.add(tabs.getComponentAt(i));
         }
-        for (CodeEditor editor : toClose) {
+        for (Component component : toClose) {
+            closeComponentTab(component);
+        }
+    }
+
+    private void closeComponentTab(Component component) {
+        if (component instanceof CodeEditor editor) {
             closeTab(editor);
+        } else if (component instanceof BinaryViewer viewer) {
+            closeBinaryTab(viewer);
         }
+    }
+
+    private void closeBinaryTab(BinaryViewer viewer) {
+        if (viewer.getFilePath() != null) {
+            openBinary.remove(viewer.getFilePath().toAbsolutePath().normalize());
+        }
+        tabs.remove(viewer);
+        if (tabs.getTabCount() == 0) {
+            showEmpty();
+        }
+        statusUpdater.run();
     }
 
     private void closeTab(CodeEditor editor) {

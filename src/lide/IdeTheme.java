@@ -22,6 +22,8 @@ public final class IdeTheme {
     public static final Color BG_EDITOR = new Color(0x2B2B2B);
     public static final Color FG = new Color(0xA9B7C6);
     public static final Color FG_DIM = new Color(0x808080);
+    /** Dimmer than FG_DIM — used for disabled controls on the dark theme. */
+    public static final Color FG_DISABLED = new Color(0x555555);
     public static final Color SELECTION = new Color(0x214283);
     public static final Color CARET = new Color(0xBBBBBB);
     public static final Color BORDER = new Color(0x515151);
@@ -109,6 +111,11 @@ public final class IdeTheme {
 
         UIManager.put("Button.background", new ColorUIResource(BG_RAISED));
         UIManager.put("Button.foreground", new ColorUIResource(FG));
+        UIManager.put("Button.disabledText", new ColorUIResource(FG_DISABLED));
+        UIManager.put("Button.disabledForeground", new ColorUIResource(FG_DISABLED));
+        UIManager.put("CheckBox.foreground", new ColorUIResource(FG));
+        UIManager.put("CheckBox.disabledText", new ColorUIResource(FG_DISABLED));
+        UIManager.put("Label.disabledForeground", new ColorUIResource(FG_DISABLED));
         UIManager.put("ToolTip.background", new ColorUIResource(BG_RAISED));
         UIManager.put("ToolTip.foreground", new ColorUIResource(FG));
         UIManager.put("ToolTip.border", BorderFactory.createLineBorder(BORDER));
@@ -144,6 +151,7 @@ public final class IdeTheme {
         UIManager.put("Menu.margin", new InsetsUIResource(0, 0, 0, 0));
         UIManager.put("Menu.acceleratorForeground", new ColorUIResource(FG_DIM));
         UIManager.put("Menu.acceleratorSelectionForeground", new ColorUIResource(Color.WHITE));
+        UIManager.put("Menu.disabledForeground", new ColorUIResource(FG_DISABLED));
 
         UIManager.put("MenuItem.background", new ColorUIResource(BG_RAISED));
         UIManager.put("MenuItem.foreground", new ColorUIResource(FG));
@@ -151,6 +159,7 @@ public final class IdeTheme {
         UIManager.put("MenuItem.selectionForeground", new ColorUIResource(Color.WHITE));
         UIManager.put("MenuItem.acceleratorForeground", new ColorUIResource(FG_DIM));
         UIManager.put("MenuItem.acceleratorSelectionForeground", new ColorUIResource(Color.WHITE));
+        UIManager.put("MenuItem.disabledForeground", new ColorUIResource(FG_DISABLED));
         UIManager.put("MenuItem.font", new FontUIResource(UI_FONT));
         UIManager.put("MenuItem.acceleratorFont", new FontUIResource(UI_FONT));
         UIManager.put("MenuItem.border", BorderFactory.createEmptyBorder());
