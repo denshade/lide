@@ -1,10 +1,13 @@
 package lide;
 
+import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 
 /**
  * Tests for Ctrl+click class navigation resolution.
@@ -20,6 +23,12 @@ public final class ClassNavigatorTest {
         testFindDeclarationOffset();
         testResolveSamePackageFile();
         testResolveViaImport();
+        testResolveWithCrlfSourceAndDeclaration();
+        if (GraphicsEnvironment.isHeadless()) {
+            System.out.println("SKIP: headless environment cannot run Ctrl+click UI tests");
+        } else {
+            SwingUtilities.invokeAndWait(ClassNavigatorTest::testCtrlClickIconGeneratorWithCrlf);
+        }
         System.out.println("Passed: " + passed + ", Failed: " + failed);
         if (failed > 0) {
             System.exit(1);
@@ -113,6 +122,137 @@ public final class ClassNavigatorTest {
             assertEqual("helper path", helper.toAbsolutePath().normalize(), target.get().path());
         } finally {
             deleteRecursive(root);
+        }
+    }
+
+    private static void testResolveWithCrlfSourceAndDeclaration() throws Exception {
+        Path root = Files.createTempDirectory("lide-nav-crlf");
+        try {
+            Path pkg = root.resolve("src").resolve("lide");
+            Files.createDirectories(pkg);
+            // CRLF on disk like Windows checkouts; declaration offset must use LF model coords.
+            String iconSrc = "package lide;\r\n"
+                    + "\r\n"
+                    + "import java.awt.Color;\r\n"
+                    + "import java.awt.Font;\r\n"
+                    + "\r\n"
+                    + "public final class IconGenerator {\r\n"
+                    + "    public static void render() {}\r\n"
+                    + "}\r\n";
+            Path icon = pkg.resolve("IconGenerator.java");
+            Files.writeString(icon, iconSrc);
+            String appSrc = "package lide;\r\n"
+                    + "\r\n"
+                    + "public class AppIcons {\r\n"
+                    + "    void m() {\r\n"
+                    + "        IconGenerator.render();\r\n"
+                    + "    }\r\n"
+                    + "}\r\n";
+            Path app = pkg.resolve("AppIcons.java");
+            Files.writeString(app, appSrc);
+
+            // Editor document model strips CR; offsets from viewToModel use that model.
+            String appDoc = appSrc.replace("\r\n", "\n");
+            int offset = appDoc.indexOf("IconGenerator");
+            Optional<ClassNavigator.Target> target = ClassNavigator.resolve(
+                    root, app, appDoc, Language.JAVA, offset);
+            assertTrue("crlf resolved", target.isPresent());
+            assertEqual("crlf path", icon.toAbsolutePath().normalize(), target.get().path());
+
+            String iconDoc = iconSrc.replace("\r\n", "\n");
+            assertEqual(
+                    "crlf caret on class name",
+                    iconDoc.indexOf("IconGenerator"),
+                    target.get().caretOffset());
+            assertEqual(
+                    "caret text",
+                    "IconGenerator",
+                    iconDoc.substring(
+                            target.get().caretOffset(),
+                            target.get().caretOffset() + "IconGenerator".length()));
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    /**
+     * JTextPane.getText() rewrites newlines to platform CRLF while viewToModel offsets
+     * stay in the LF document model — Ctrl+click must use document text.
+     */
+    private static void testCtrlClickIconGeneratorWithCrlf() {
+        Path created = null;
+        JFrame frame = new JFrame("Ctrl+click CRLF test");
+        try {
+            created = Files.createTempDirectory("lide-ctrl-crlf");
+            Path root = created;
+            Path pkg = root.resolve("src").resolve("lide");
+            Files.createDirectories(pkg);
+            Path icon = pkg.resolve("IconGenerator.java");
+            Path app = pkg.resolve("AppIcons.java");
+            Files.writeString(
+                    icon,
+                    "package lide;\r\n\r\npublic final class IconGenerator {\r\n}\r\n");
+            String appSrc = "package lide;\r\n\r\npublic class AppIcons {\r\n"
+                    + "    void m() { IconGenerator.render(); }\r\n}\r\n";
+            Files.writeString(app, appSrc);
+
+            EditorTabPane pane = new EditorTabPane();
+            pane.setProjectRootSupplier(() -> root);
+            frame.add(pane);
+            frame.setSize(900, 700);
+            frame.setVisible(true);
+
+            pane.openFile(app);
+            CodeEditor editor = pane.getActiveEditor();
+            assertTrue("editor open", editor != null);
+
+            String rewritten = editor.getText();
+            String doc = editor.getDocumentText();
+            assertTrue("document text is LF-only", !doc.contains("\r"));
+            assertTrue("getText rewrites EOL", rewritten.contains("\r"));
+            assertTrue("getText longer than document", rewritten.length() > doc.length());
+
+            int docOffset = doc.indexOf("IconGenerator");
+            assertTrue("IconGenerator in doc", docOffset >= 0);
+
+            // Same numeric offset against rewritten getText() is wrong (the old bug).
+            String wrongWord = ClassNavigator.identifierAt(rewritten, docOffset);
+            assertTrue(
+                    "getText+docOffset is not IconGenerator",
+                    !"IconGenerator".equals(wrongWord));
+
+            Optional<ClassNavigator.Target> target = ClassNavigator.resolve(
+                    root, app, doc, Language.JAVA, docOffset);
+            assertTrue("doc-offset resolve", target.isPresent());
+            assertEqual("doc path", icon.toAbsolutePath().normalize(), target.get().path());
+
+            pane.navigateTo(target.get());
+            CodeEditor active = pane.getActiveEditor();
+            assertTrue("navigated editor", active != null);
+            assertEqual(
+                    "opened IconGenerator",
+                    icon.toAbsolutePath().normalize(),
+                    active.getFilePath());
+            String opened = active.getDocumentText();
+            assertEqual(
+                    "caret on class name",
+                    "IconGenerator",
+                    opened.substring(
+                            active.getCaretPosition(),
+                            active.getCaretPosition() + "IconGenerator".length()));
+        } catch (Exception ex) {
+            failed++;
+            System.err.println("FAIL ctrl-click crlf UI: " + ex);
+            ex.printStackTrace(System.err);
+        } finally {
+            frame.dispose();
+            if (created != null) {
+                try {
+                    deleteRecursive(created);
+                } catch (Exception ignored) {
+                    // best-effort cleanup
+                }
+            }
         }
     }
 

@@ -7,8 +7,10 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import javax.swing.Icon;
 import javax.swing.JFileChooser;
@@ -36,7 +38,9 @@ public final class MainFrame extends JFrame {
     private final JLabel statusLabel = new JLabel("Ready");
     private final ProjectHistory projectHistory = new ProjectHistory();
     private ScriptsPanel scriptsPanel;
+    private FindInFilesPanel findInFilesPanel;
     private JMenu openRecentMenu;
+    private final List<JMenuItem> ladleItems = new ArrayList<>();
 
     public MainFrame() {
         super("Lide");
@@ -65,6 +69,18 @@ public final class MainFrame extends JFrame {
         mainSplit.setBorder(null);
         mainSplit.setBackground(IdeTheme.BG);
 
+        FindInFilesPanel findInFilesPanel = new FindInFilesPanel();
+        this.findInFilesPanel = findInFilesPanel;
+        findInFilesPanel.setOpenMatchHandler(match -> {
+            editors.openMatch(match.file(), match.offset(), match.length());
+            updateStatus();
+        });
+
+        JPanel body = new JPanel(new BorderLayout());
+        body.setBackground(IdeTheme.BG);
+        body.add(mainSplit, BorderLayout.CENTER);
+        body.add(findInFilesPanel, BorderLayout.SOUTH);
+
         JPanel statusBar = new JPanel(new BorderLayout());
         statusBar.setBackground(IdeTheme.BG_RAISED);
         statusBar.setBorder(new EmptyBorder(4, 10, 4, 10));
@@ -74,7 +90,7 @@ public final class MainFrame extends JFrame {
 
         setJMenuBar(buildMenuBar());
         setIconImages(AppIcons.loadWindowIcons());
-        add(mainSplit, BorderLayout.CENTER);
+        add(body, BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
 
         addWindowListener(new WindowAdapter() {
@@ -150,6 +166,8 @@ public final class MainFrame extends JFrame {
 
         JMenu edit = buildEditMenu();
 
+        JMenu ladle = buildLadleMenu();
+
         JMenu view = new JMenu("View");
         view.setMnemonic(KeyEvent.VK_V);
         JMenuItem about = new JMenuItem("About Lide");
@@ -158,8 +176,171 @@ public final class MainFrame extends JFrame {
 
         bar.add(file);
         bar.add(edit);
+        bar.add(ladle);
         bar.add(view);
         return bar;
+    }
+
+    private JMenu buildLadleMenu() {
+        JMenu ladle = new JMenu("Ladle");
+        ladle.setMnemonic(KeyEvent.VK_L);
+
+        JMenuItem install = new JMenuItem("Install Ladle");
+        install.addActionListener(e -> installLadle());
+
+        JMenuItem build = ladleItem("Build", LadleCommand.BUILD);
+        JMenuItem test = ladleItem("Test", LadleCommand.TEST);
+        JMenuItem release = ladleItem("Release", LadleCommand.RELEASE);
+        JMenuItem dependencies = ladleItem("Download Dependencies", LadleCommand.DEPENDENCY);
+        JMenuItem clear = ladleItem("Clear", LadleCommand.CLEAR);
+
+        ladle.add(install);
+        ladle.addSeparator();
+        ladle.add(build);
+        ladle.add(test);
+        ladle.addSeparator();
+        ladle.add(release);
+        ladle.add(dependencies);
+        ladle.add(clear);
+
+        ladleItems.add(install);
+        ladleItems.add(build);
+        ladleItems.add(test);
+        ladleItems.add(release);
+        ladleItems.add(dependencies);
+        ladleItems.add(clear);
+        updateLadleMenu();
+
+        ladle.addMenuListener(new MenuListener() {
+            @Override
+            public void menuSelected(MenuEvent e) {
+                updateLadleMenu();
+            }
+
+            @Override
+            public void menuDeselected(MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(MenuEvent e) {
+            }
+        });
+        return ladle;
+    }
+
+    private JMenuItem ladleItem(String label, String command) {
+        JMenuItem item = new JMenuItem(label);
+        item.addActionListener(e -> runLadle(command));
+        return item;
+    }
+
+    void updateLadleMenu() {
+        boolean enable = projectTree.getProjectRoot() != null && !scriptsPanel.isRunning();
+        for (JMenuItem item : ladleItems) {
+            item.setEnabled(enable);
+        }
+    }
+
+    void runLadle(String command) {
+        Path root = projectTree.getProjectRoot();
+        if (root == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Open a project directory first.",
+                    "Ladle",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (!LadleCommand.isAvailable(root)) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "This project is not a Ladle project.\n"
+                            + "Use Ladle → Install Ladle, or add lib/ladle.jar and build.ini.",
+                    "Ladle",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (scriptsPanel.isRunning()) {
+            return;
+        }
+        editors.saveAll();
+        scriptsPanel.runProcess(LadleCommand.processBuilder(root, command));
+        updateLadleMenu();
+    }
+
+    void installLadle() {
+        Path root = projectTree.getProjectRoot();
+        if (root == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Open a project directory first.",
+                    "Install Ladle",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        Path source = LadleInstaller.findDistribution(root);
+        if (source == null) {
+            source = chooseLadleDistribution(root);
+            if (source == null) {
+                return;
+            }
+        }
+        try {
+            LadleInstaller.Result result = LadleInstaller.install(source, root);
+            projectTree.openDirectory(root);
+            scriptsPanel.refresh();
+            StringBuilder message = new StringBuilder();
+            message.append("Installed Ladle from:\n").append(result.source()).append("\n\n");
+            message.append("Copied ").append(result.jar());
+            if (!result.scripts().isEmpty()) {
+                message.append("\nand ").append(result.scripts().size()).append(" launcher script(s)");
+            }
+            if (result.wroteIni()) {
+                message.append("\n\nWrote a starter build.ini. Edit it to match this project.");
+            }
+            JOptionPane.showMessageDialog(
+                    this,
+                    message.toString(),
+                    "Install Ladle",
+                    JOptionPane.INFORMATION_MESSAGE);
+            statusLabel.setText("Installed Ladle in " + root);
+        } catch (IOException | IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Could not install Ladle:\n" + ex.getMessage(),
+                    "Install Ladle",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private Path chooseLadleDistribution(Path projectRoot) {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Select a Ladle distribution (folder with lib/ladle.jar)");
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setAcceptAllFileFilterUsed(false);
+        Path start = projectRoot.getParent() != null ? projectRoot.getParent() : projectRoot;
+        chooser.setCurrentDirectory(start.toFile());
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return null;
+        }
+        Path chosen = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
+        if (!LadleInstaller.isDistribution(chosen)) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "That folder is not a Ladle distribution.\nIt must contain lib/ladle.jar.",
+                    "Install Ladle",
+                    JOptionPane.WARNING_MESSAGE);
+            return null;
+        }
+        if (chosen.equals(projectRoot.toAbsolutePath().normalize())) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Choose a different folder than the open project.",
+                    "Install Ladle",
+                    JOptionPane.WARNING_MESSAGE);
+            return null;
+        }
+        return chosen;
     }
 
     private void showAboutDialog() {
@@ -237,6 +418,11 @@ public final class MainFrame extends JFrame {
         findPrevious.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, InputEvent.SHIFT_DOWN_MASK));
         findPrevious.addActionListener(e -> editors.findPrevious());
 
+        JMenuItem findInFiles = new JMenuItem("Find in Files…");
+        findInFiles.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F,
+                InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK));
+        findInFiles.addActionListener(e -> showFindInFiles());
+
         edit.addMenuListener(new MenuListener() {
             @Override
             public void menuSelected(MenuEvent e) {
@@ -266,9 +452,28 @@ public final class MainFrame extends JFrame {
         edit.add(paste);
         edit.addSeparator();
         edit.add(find);
+        edit.add(findInFiles);
         edit.add(findNext);
         edit.add(findPrevious);
         return edit;
+    }
+
+    void showFindInFiles() {
+        findInFilesPanel.setMinimized(false);
+        CodeEditor editor = editors.getActiveEditor();
+        if (editor != null) {
+            String selected = editor.getSelectedText();
+            if (selected != null && !selected.isEmpty() && !selected.contains("\n")) {
+                findInFilesPanel.setQuery(selected);
+                findInFilesPanel.runSearch();
+                return;
+            }
+        }
+        findInFilesPanel.focusQuery();
+    }
+
+    FindInFilesPanel findInFilesPanel() {
+        return findInFilesPanel;
     }
 
     private void openDirectory() {
@@ -302,10 +507,16 @@ public final class MainFrame extends JFrame {
                     JOptionPane.ERROR_MESSAGE);
             return;
         }
-        projectTree.openDirectory(dir);
         projectHistory.remember(dir);
-        scriptsPanel.setProjectRoot(dir);
+        applyProjectDirectory(dir);
         rebuildOpenRecentMenu();
+    }
+
+    void applyProjectDirectory(Path dir) {
+        projectTree.openDirectory(dir);
+        scriptsPanel.setProjectRoot(dir);
+        findInFilesPanel.setProjectRoot(dir);
+        updateLadleMenu();
         setTitle("Lide — " + (dir.getFileName() != null ? dir.getFileName() : dir));
         statusLabel.setText("Opened project: " + dir);
     }
@@ -359,6 +570,7 @@ public final class MainFrame extends JFrame {
                 editors.saveAll();
             }
         }
+        scriptsPanel.stopRunning();
         dispose();
         System.exit(0);
     }

@@ -28,6 +28,7 @@ import javax.swing.event.UndoableEditEvent;
 import javax.swing.event.UndoableEditListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultCaret;
+import javax.swing.text.Document;
 import javax.swing.text.Element;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.TabSet;
@@ -172,7 +173,7 @@ public final class CodeEditor extends JPanel {
         Optional<ClassNavigator.Target> target = ClassNavigator.resolve(
                 projectRootSupplier.get(),
                 filePath,
-                textPane.getText(),
+                getDocumentText(),
                 language,
                 offset);
         target.ifPresent(navigateHandler);
@@ -184,7 +185,7 @@ public final class CodeEditor extends JPanel {
             return;
         }
         int offset = textPane.viewToModel2D(point);
-        String word = ClassNavigator.identifierAt(textPane.getText(), offset);
+        String word = ClassNavigator.identifierAt(getDocumentText(), offset);
         if (ClassNavigator.isNavigableClassName(word, language)) {
             textPane.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         } else {
@@ -284,6 +285,20 @@ public final class CodeEditor extends JPanel {
 
     public String getText() {
         return textPane.getText();
+    }
+
+    /**
+     * Text as stored in the document model (LF newlines). Use this with caret,
+     * selection, and viewToModel offsets — {@link JTextPane#getText()} may rewrite
+     * newlines to the platform separator and no longer match those offsets.
+     */
+    public String getDocumentText() {
+        try {
+            Document doc = textPane.getDocument();
+            return doc.getText(0, doc.getLength());
+        } catch (BadLocationException ex) {
+            return "";
+        }
     }
 
     public String getSelectedText() {

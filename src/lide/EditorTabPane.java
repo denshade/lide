@@ -92,6 +92,19 @@ public final class EditorTabPane extends JPanel {
         openFile(path, -1);
     }
 
+    /**
+     * Opens {@code path} and selects {@code length} characters starting at {@code offset}.
+     */
+    public void openMatch(Path path, int offset, int length) {
+        openFile(path, offset);
+        Path normalized = path.toAbsolutePath().normalize();
+        CodeEditor editor = openEditors.get(normalized);
+        if (editor != null && length > 0) {
+            editor.selectRange(offset, offset + length);
+            editor.getTextPane().requestFocusInWindow();
+        }
+    }
+
     public void openFile(Path path, int caretOffset) {
         Path normalized = path.toAbsolutePath().normalize();
         CodeEditor existingEditor = openEditors.get(normalized);
@@ -339,7 +352,7 @@ public final class EditorTabPane extends JPanel {
         }
         int from = editor.getSelectionStart();
         int index = TextFinder.findNext(
-                editor.getText(), query, from, findBar.isMatchCase());
+                editor.getDocumentText(), query, from, findBar.isMatchCase());
         applyFindResult(editor, query, index);
     }
 
@@ -359,7 +372,7 @@ public final class EditorTabPane extends JPanel {
             findBar.focusQuery();
             return false;
         }
-        String text = editor.getText();
+        String text = editor.getDocumentText();
         int index;
         if (forward) {
             int from = editor.getSelectionEnd();
@@ -378,13 +391,13 @@ public final class EditorTabPane extends JPanel {
     }
 
     private boolean applyFindResult(CodeEditor editor, String query, int index) {
-        int total = TextFinder.countMatches(editor.getText(), query, findBar.isMatchCase());
+        int total = TextFinder.countMatches(editor.getDocumentText(), query, findBar.isMatchCase());
         if (index < 0) {
             findBar.setStatus("No results");
             return false;
         }
         editor.selectRange(index, index + query.length());
-        int occurrence = occurrenceNumber(editor.getText(), query, index, findBar.isMatchCase());
+        int occurrence = occurrenceNumber(editor.getDocumentText(), query, index, findBar.isMatchCase());
         findBar.setStatus(occurrence + " of " + total);
         return true;
     }

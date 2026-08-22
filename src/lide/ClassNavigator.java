@@ -241,7 +241,8 @@ public final class ClassNavigator {
 
     private static String readQuietly(Path path) {
         try {
-            return Files.readString(path);
+            // Normalize to LF so declaration offsets match the editor document model.
+            return Files.readString(path).replace("\r\n", "\n").replace('\r', '\n');
         } catch (IOException ex) {
             return "";
         }

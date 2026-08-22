@@ -4,11 +4,13 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FlowLayout;
-import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -22,12 +24,18 @@ import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
 
 /**
  * Bottom panel listing project scripts and running them with captured output.
  */
 public final class ScriptsPanel extends JPanel {
+    static final int OUTPUT_FLUSH_MS = 50;
+    static final int MAX_PENDING_CHARS = 64 * 1024;
+
     private final DefaultListModel<ScriptEntry> listModel = new DefaultListModel<>();
     private final JList<ScriptEntry> scriptList = new JList<>(listModel);
     private final JTextArea output = new JTextArea();
@@ -36,6 +44,13 @@ public final class ScriptsPanel extends JPanel {
     private final JButton refreshButton = new JButton("Refresh");
     private final JLabel titleLabel = new JLabel("Scripts");
     private final AtomicReference<Process> running = new AtomicReference<>();
+    private final AtomicReference<SwingWorker<Integer, Void>> worker = new AtomicReference<>();
+    private final Object pendingLock = new Object();
+    private final StringBuilder pendingOutput = new StringBuilder();
+    private volatile boolean busy;
+    private volatile boolean userStopped;
+    private Timer outputFlushTimer;
+    int maxConsoleChars = 256 * 1024;
 
     private Path projectRoot;
 
@@ -171,6 +186,9 @@ public final class ScriptsPanel extends JPanel {
     }
 
     public boolean isRunning() {
+        if (busy) {
+            return true;
+        }
         Process process = running.get();
         return process != null && process.isAlive();
     }
@@ -187,56 +205,116 @@ public final class ScriptsPanel extends JPanel {
         if (script == null || projectRoot == null || isRunning()) {
             return;
         }
-        ProcessBuilder builder = ScriptCommand.processBuilder(script, projectRoot);
+        startProcess(ScriptCommand.processBuilder(script, projectRoot));
+    }
+
+    void runProcess(ProcessBuilder builder) {
+        if (builder == null || builder.command().isEmpty() || isRunning()) {
+            return;
+        }
+        startProcess(builder);
+    }
+
+    /**
+     * Runs an arbitrary command in {@code workingDirectory} and streams output here.
+     */
+    void runCommand(List<String> command, Path workingDirectory) {
+        if (command == null || command.isEmpty() || isRunning()) {
+            return;
+        }
+        ProcessBuilder builder = new ProcessBuilder(command);
+        Path cwd = workingDirectory != null ? workingDirectory : projectRoot;
+        if (cwd != null) {
+            builder.directory(cwd.toAbsolutePath().normalize().toFile());
+        }
+        builder.redirectErrorStream(true);
+        startProcess(builder);
+    }
+
+    private void startProcess(ProcessBuilder builder) {
         output.setText("");
         appendOutput("$ " + String.join(" ", builder.command()) + "\n");
-        appendOutput("(cwd: " + projectRoot + ")\n\n");
+        if (builder.directory() != null) {
+            appendOutput("(cwd: " + builder.directory() + ")\n\n");
+        }
+        userStopped = false;
+        synchronized (pendingLock) {
+            pendingOutput.setLength(0);
+        }
+        busy = true;
         setRunningUi(true);
+        startFlushTimer();
 
-        SwingWorker<Integer, String> worker = new SwingWorker<>() {
+        SwingWorker<Integer, Void> next = new SwingWorker<>() {
             @Override
             protected Integer doInBackground() throws Exception {
                 Process process = builder.start();
                 running.set(process);
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(process.getInputStream(), Charset.defaultCharset()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        publish(line);
+                ProcessSupport.lowerPriority(process);
+                try {
+                    process.getOutputStream().close();
+                } catch (IOException ignored) {
+                }
+                if (isCancelled() || userStopped) {
+                    ProcessSupport.destroyTree(process);
+                    return -1;
+                }
+                try (Reader reader = new InputStreamReader(
+                        process.getInputStream(), Charset.defaultCharset())) {
+                    char[] buf = new char[8192];
+                    int n;
+                    while ((n = reader.read(buf)) >= 0) {
+                        if (isCancelled() || userStopped) {
+                            break;
+                        }
+                        enqueueOutput(new String(buf, 0, n));
                     }
+                } catch (IOException ex) {
+                    if (!userStopped && !isCancelled()) {
+                        enqueueOutput("\n[read error: " + ex.getMessage() + "]\n");
+                    }
+                }
+                if (userStopped || isCancelled()) {
+                    ProcessSupport.destroyTree(process);
                 }
                 return process.waitFor();
             }
 
             @Override
-            protected void process(List<String> chunks) {
-                for (String line : chunks) {
-                    appendOutput(line + "\n");
-                }
-            }
-
-            @Override
             protected void done() {
                 running.set(null);
+                worker.compareAndSet(this, null);
+                busy = false;
+                stopFlushTimerAndFlush();
                 setRunningUi(false);
+                if (userStopped || isCancelled()) {
+                    appendOutput("\n[stopped]\n");
+                    return;
+                }
                 try {
                     int code = get();
                     appendOutput("\n[exit code " + code + "]\n");
+                } catch (CancellationException ex) {
+                    appendOutput("\n[stopped]\n");
                 } catch (Exception ex) {
                     appendOutput("\n[failed: " + ex.getMessage() + "]\n");
                 }
             }
         };
-        worker.execute();
+        worker.set(next);
+        next.execute();
     }
 
     void stopRunning() {
-        Process process = running.getAndSet(null);
-        if (process != null) {
-            process.destroyForcibly();
-            appendOutput("\n[stopped]\n");
+        userStopped = true;
+        synchronized (pendingLock) {
+            pendingLock.notifyAll();
         }
-        setRunningUi(false);
+        ProcessSupport.destroyTree(running.get());
+        SwingWorker<Integer, Void> current = worker.get();
+        if (current != null) {
+            current.cancel(true);
+        }
     }
 
     private void setRunningUi(boolean runningNow) {
@@ -249,13 +327,68 @@ public final class ScriptsPanel extends JPanel {
         runButton.setEnabled(!isRunning() && scriptList.getSelectedValue() != null);
     }
 
+    private void startFlushTimer() {
+        if (outputFlushTimer == null) {
+            outputFlushTimer = new Timer(OUTPUT_FLUSH_MS, e -> flushPendingOutput());
+            outputFlushTimer.setRepeats(true);
+        }
+        outputFlushTimer.restart();
+    }
+
+    private void stopFlushTimerAndFlush() {
+        if (outputFlushTimer != null) {
+            outputFlushTimer.stop();
+        }
+        flushPendingOutput();
+    }
+
+    private void enqueueOutput(String chunk) {
+        synchronized (pendingLock) {
+            pendingOutput.append(chunk);
+            while (pendingOutput.length() > MAX_PENDING_CHARS && !userStopped) {
+                try {
+                    pendingLock.wait(OUTPUT_FLUSH_MS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+    }
+
+    private void flushPendingOutput() {
+        String chunk;
+        synchronized (pendingLock) {
+            if (pendingOutput.length() == 0) {
+                pendingLock.notifyAll();
+                return;
+            }
+            chunk = pendingOutput.toString();
+            pendingOutput.setLength(0);
+            pendingLock.notifyAll();
+        }
+        appendOutput(normalizeNewlines(chunk));
+    }
+
+    static String normalizeNewlines(String text) {
+        return text.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
     private void appendOutput(String text) {
         if (!SwingUtilities.isEventDispatchThread()) {
             SwingUtilities.invokeLater(() -> appendOutput(text));
             return;
         }
         output.append(text);
-        output.setCaretPosition(output.getDocument().getLength());
+        Document doc = output.getDocument();
+        int extra = doc.getLength() - maxConsoleChars;
+        if (extra > 0) {
+            try {
+                doc.remove(0, extra);
+            } catch (BadLocationException ignored) {
+            }
+        }
+        output.setCaretPosition(doc.getLength());
     }
 
     record ScriptEntry(Path path, String label) {

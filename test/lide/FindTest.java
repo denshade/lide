@@ -16,6 +16,7 @@ public final class FindTest {
         testFindPrevious();
         testMatchCase();
         testCountMatches();
+        testLineHelpers();
         testWrapAround();
         if (GraphicsEnvironment.isHeadless()) {
             System.out.println("SKIP: headless environment cannot run editor find tests");
@@ -23,6 +24,7 @@ public final class FindTest {
             SwingUtilities.invokeAndWait(() -> {
                 testEditorFindBar();
                 testFindHighlightDoesNotStealFocus();
+                testFindWorksWithCrlfFile();
             });
         }
         System.out.println("Passed: " + passed + ", Failed: " + failed);
@@ -54,6 +56,22 @@ public final class FindTest {
         assertEqual("count", 3, TextFinder.countMatches("aaa", "a", true));
         assertEqual("count word", 2, TextFinder.countMatches("one two one", "one", true));
         assertEqual("empty query", 0, TextFinder.countMatches("abc", "", true));
+        assertEqual("findAll size", 2, TextFinder.findAll("one two one", "one", true).size());
+        assertEqual("findAll first", 0, TextFinder.findAll("one two one", "one", true).get(0));
+        assertEqual("findAll second", 8, TextFinder.findAll("one two one", "one", true).get(1));
+    }
+
+    private static void testLineHelpers() {
+        assertEqual("lf only", "a\nb", TextFinder.normalizeNewlines("a\nb"));
+        assertEqual("crlf", "a\nb", TextFinder.normalizeNewlines("a\r\nb"));
+        assertEqual("cr", "a\nb", TextFinder.normalizeNewlines("a\rb"));
+        String text = "alpha\nbeta\ngamma";
+        assertEqual("line 1", 1, TextFinder.lineNumber(text, 0));
+        assertEqual("line 2", 2, TextFinder.lineNumber(text, 6));
+        assertEqual("line 3", 3, TextFinder.lineNumber(text, 11));
+        assertEqual("lineAt 1", "alpha", TextFinder.lineAt(text, 0));
+        assertEqual("lineAt 2", "beta", TextFinder.lineAt(text, 6));
+        assertEqual("lineAt 3", "gamma", TextFinder.lineAt(text, 11));
     }
 
     private static void testWrapAround() {
@@ -115,6 +133,32 @@ public final class FindTest {
             if (otherHadFocus) {
                 assertTrue("external focus retained after highlight", other.isFocusOwner());
             }
+        } finally {
+            frame.dispose();
+        }
+    }
+
+    private static void testFindWorksWithCrlfFile() {
+        JFrame frame = new JFrame("Find CRLF test");
+        try {
+            EditorTabPane pane = new EditorTabPane();
+            frame.add(pane);
+            frame.setSize(640, 480);
+            frame.setVisible(true);
+            // Content with CR so JTextPane.getText() diverges from document offsets.
+            pane.openUntitled("crlf.txt", "alpha\r\nbeta\r\nalpha", Language.PLAIN);
+            CodeEditor editor = pane.getActiveEditor();
+            assertTrue("doc is LF", !editor.getDocumentText().contains("\r"));
+            pane.showFind();
+            pane.findBar().setQuery("alpha");
+            assertEqual("first match selected", "alpha", editor.getSelectedText());
+            assertEqual("first match at start", 0, editor.getSelectionStart());
+            assertTrue("find next", pane.findNext());
+            assertEqual("second match selected", "alpha", editor.getSelectedText());
+            assertEqual(
+                    "second match index",
+                    editor.getDocumentText().lastIndexOf("alpha"),
+                    editor.getSelectionStart());
         } finally {
             frame.dispose();
         }

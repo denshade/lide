@@ -19,6 +19,10 @@ public final class ScriptsPanelTest {
         testCommandForPs1();
         testCommandForPy();
         testPanelRefresh();
+        testRunCommand();
+        testStopRunning();
+        testFloodKeepsEdtResponsive();
+        testConsoleOutputIsCapped();
         System.out.println("Passed: " + passed + ", Failed: " + failed);
         if (failed > 0) {
             System.exit(1);
@@ -102,6 +106,154 @@ public final class ScriptsPanelTest {
         } finally {
             deleteRecursive(root);
         }
+    }
+
+    private static void testRunCommand() throws Exception {
+        if (java.awt.GraphicsEnvironment.isHeadless()) {
+            System.out.println("SKIP runCommand in headless");
+            return;
+        }
+        Path root = Files.createTempDirectory("lide-run-cmd");
+        try {
+            ScriptsPanel panel = new ScriptsPanel();
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+                panel.setProjectRoot(root);
+                List<String> cmd = ScriptCommand.isWindows()
+                        ? List.of("cmd.exe", "/c", "echo hello-ladle")
+                        : List.of("echo", "hello-ladle");
+                panel.runCommand(cmd, root);
+            });
+            long deadline = System.currentTimeMillis() + 8000;
+            while (System.currentTimeMillis() < deadline) {
+                if (panel.getOutputText().contains("[exit code")) {
+                    break;
+                }
+                Thread.sleep(50);
+            }
+            String[] holder = new String[1];
+            javax.swing.SwingUtilities.invokeAndWait(() -> holder[0] = panel.getOutputText());
+            String output = holder[0];
+            assertTrue("not running", !panel.isRunning());
+            assertTrue("shows command", output.contains("echo"));
+            assertTrue("shows hello", output.contains("hello-ladle"));
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    private static void testStopRunning() throws Exception {
+        if (java.awt.GraphicsEnvironment.isHeadless()) {
+            System.out.println("SKIP stopRunning in headless");
+            return;
+        }
+        Path root = Files.createTempDirectory("lide-stop-cmd");
+        try {
+            Path script = writeHangScript(root);
+            ScriptsPanel panel = new ScriptsPanel();
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+                panel.setProjectRoot(root);
+                panel.runScript(script);
+            });
+            assertTrue("started", waitUntil(() -> panel.isRunning(), 5000));
+            javax.swing.SwingUtilities.invokeAndWait(panel::stopRunning);
+            assertTrue("stopped", waitUntil(() -> !panel.isRunning(), 8000));
+            String[] holder = new String[1];
+            javax.swing.SwingUtilities.invokeAndWait(() -> holder[0] = panel.getOutputText());
+            assertTrue("stopped message", holder[0].contains("[stopped]"));
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    private static void testFloodKeepsEdtResponsive() throws Exception {
+        if (java.awt.GraphicsEnvironment.isHeadless()) {
+            System.out.println("SKIP flood EDT in headless");
+            return;
+        }
+        Path root = Files.createTempDirectory("lide-flood-cmd");
+        try {
+            Path script = writeFloodScript(root, 4000);
+            ScriptsPanel panel = new ScriptsPanel();
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+                panel.setProjectRoot(root);
+                panel.runScript(script);
+            });
+            assertTrue("flood started", waitUntil(
+                    () -> panel.getOutputText().contains("flood-line-"), 8000));
+            long start = System.currentTimeMillis();
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+            });
+            long waited = System.currentTimeMillis() - start;
+            assertTrue("EDT responsive in " + waited + "ms", waited < 1000);
+            assertTrue("flood finished", waitUntil(() -> !panel.isRunning(), 15000));
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    private static void testConsoleOutputIsCapped() throws Exception {
+        if (java.awt.GraphicsEnvironment.isHeadless()) {
+            System.out.println("SKIP console cap in headless");
+            return;
+        }
+        Path root = Files.createTempDirectory("lide-cap-cmd");
+        try {
+            Path script = writeFloodScript(root, 200);
+            ScriptsPanel panel = new ScriptsPanel();
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+                panel.maxConsoleChars = 1500;
+                panel.setProjectRoot(root);
+                panel.runScript(script);
+            });
+            assertTrue("cap finished", waitUntil(() -> !panel.isRunning(), 15000));
+            String[] holder = new String[1];
+            javax.swing.SwingUtilities.invokeAndWait(() -> holder[0] = panel.getOutputText());
+            assertTrue("capped length " + holder[0].length(), holder[0].length() <= 1500);
+            assertTrue("kept recent output", holder[0].contains("flood-line-"));
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    private static Path writeHangScript(Path root) throws Exception {
+        if (ScriptCommand.isWindows()) {
+            Path script = root.resolve("hang.bat");
+            Files.writeString(script, "@echo off\r\nping -n 40 127.0.0.1\r\n");
+            return script;
+        }
+        Path script = root.resolve("hang.sh");
+        Files.writeString(script, "#!/bin/sh\nsleep 40\n");
+        return script;
+    }
+
+    private static Path writeFloodScript(Path root, int lines) throws Exception {
+        if (ScriptCommand.isWindows()) {
+            Path script = root.resolve("flood.bat");
+            Files.writeString(script,
+                    "@echo off\r\nfor /L %%i in (1,1," + lines + ") do echo flood-line-%%i\r\n");
+            return script;
+        }
+        Path script = root.resolve("flood.sh");
+        Files.writeString(script,
+                "#!/bin/sh\ni=1\nwhile [ \"$i\" -le " + lines
+                        + " ]; do echo flood-line-$i; i=$((i+1)); done\n");
+        return script;
+    }
+
+    private static boolean waitUntil(Check check, long timeoutMs) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (check.ok()) {
+                return true;
+            }
+            Thread.sleep(25);
+        }
+        return check.ok();
+    }
+
+    @FunctionalInterface
+    private interface Check {
+        boolean ok() throws Exception;
     }
 
     private static void deleteRecursive(Path root) throws Exception {
