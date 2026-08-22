@@ -6,9 +6,10 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 
 - Open a directory via **File → Open Directory** to show its files in the left tree.
 - **File → Open Recent** lists previously opened project directories (most recent first), persisted in `~/.lide/recent-projects.txt`. Missing directories are removed when selected; **Clear Recent Projects** wipes the list.
+- **File → New File** (Ctrl+N) creates an empty file in the selected tree folder (or the project root if nothing is selected) and opens it in the editor. Nested names such as `src/Hello.java` create missing parent folders. A project directory must be open first.
 - Double-click a file to open it in the editor.
 - Right-click a file for a context menu with **Open**.
-- Right-click a folder for a context menu with **Refresh** to reload that folder’s children.
+- Right-click a folder for a context menu with **New File** (same as the File menu, in that folder) and **Refresh** to reload that folder’s children.
 
 ## Editor tabs
 

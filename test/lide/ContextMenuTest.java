@@ -26,6 +26,7 @@ public final class ContextMenuTest {
             testCloseAll();
             testProjectTreeFileMenu();
             testProjectTreeDirectoryMenu();
+            testProjectTreeNewFileHandler();
             testClickInactiveTabSelectsIt();
             testTabCloseUsesXIcon();
         });
@@ -87,8 +88,22 @@ public final class ContextMenuTest {
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(
                 new ProjectTreePanel.FileNode(Path.of("src"), true));
         JPopupMenu menu = tree.createContextMenu(node);
-        assertEqual("dir menu item count", 1, menu.getComponentCount());
-        assertEqual("dir menu item", "Refresh", ((JMenuItem) menu.getComponent(0)).getText());
+        assertEqual("dir menu item count", 2, menu.getComponentCount());
+        assertEqual("dir first item", "New File…", ((JMenuItem) menu.getComponent(0)).getText());
+        assertEqual("dir second item", "Refresh", ((JMenuItem) menu.getComponent(1)).getText());
+    }
+
+    private static void testProjectTreeNewFileHandler() {
+        ProjectTreePanel tree = new ProjectTreePanel();
+        AtomicReference<Path> createdIn = new AtomicReference<>();
+        tree.setNewFileHandler(createdIn::set);
+
+        Path dir = Path.of("src");
+        DefaultMutableTreeNode node =
+                new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(dir, true));
+        JPopupMenu menu = tree.createContextMenu(node);
+        ((JMenuItem) menu.getComponent(0)).doClick();
+        assertEqual("new file handler path", dir, createdIn.get());
     }
 
     private static void testClickInactiveTabSelectsIt() {

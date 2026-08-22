@@ -43,6 +43,8 @@ public final class ProjectTreePanel extends JPanel {
     private final DefaultMutableTreeNode rootNode;
     private Consumer<Path> openFileHandler = path -> {
     };
+    private Consumer<Path> newFileHandler = path -> {
+    };
     private Path projectRoot;
     private int loadGeneration;
 
@@ -135,6 +137,9 @@ public final class ProjectTreePanel extends JPanel {
             open.addActionListener(e -> openFileHandler.accept(fileNode.path()));
             menu.add(open);
         } else {
+            JMenuItem newFile = new JMenuItem("New File…");
+            newFile.addActionListener(e -> newFileHandler.accept(fileNode.path()));
+            menu.add(newFile);
             JMenuItem refresh = new JMenuItem("Refresh");
             refresh.addActionListener(e -> refreshNode(node));
             menu.add(refresh);
@@ -153,8 +158,61 @@ public final class ProjectTreePanel extends JPanel {
         this.openFileHandler = openFileHandler;
     }
 
+    public void setNewFileHandler(Consumer<Path> newFileHandler) {
+        this.newFileHandler = newFileHandler;
+    }
+
     public Path getProjectRoot() {
         return projectRoot;
+    }
+
+    /**
+     * Directory that should receive a new file: the selected folder, the parent
+     * of a selected file, or the project root when nothing is selected.
+     */
+    public Path getSelectedDirectory() {
+        if (projectRoot == null) {
+            return null;
+        }
+        TreePath path = tree.getSelectionPath();
+        if (path == null) {
+            return projectRoot;
+        }
+        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+        if (!(node.getUserObject() instanceof FileNode fileNode)) {
+            return projectRoot;
+        }
+        if (fileNode.directory()) {
+            return fileNode.path();
+        }
+        Path parent = fileNode.path().getParent();
+        return parent != null ? parent : projectRoot;
+    }
+
+    void refreshDirectory(Path directory) {
+        if (directory == null) {
+            return;
+        }
+        DefaultMutableTreeNode node = findDirectoryNode(rootNode, directory.toAbsolutePath().normalize());
+        if (node != null) {
+            refreshNode(node);
+        }
+    }
+
+    private static DefaultMutableTreeNode findDirectoryNode(DefaultMutableTreeNode node, Path target) {
+        if (node.getUserObject() instanceof FileNode fileNode
+                && fileNode.directory()
+                && fileNode.path().toAbsolutePath().normalize().equals(target)) {
+            return node;
+        }
+        for (int i = 0; i < node.getChildCount(); i++) {
+            DefaultMutableTreeNode found =
+                    findDirectoryNode((DefaultMutableTreeNode) node.getChildAt(i), target);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     public void openDirectory(Path directory) {

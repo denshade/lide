@@ -51,6 +51,7 @@ public final class MainFrame extends JFrame {
         getContentPane().setBackground(IdeTheme.BG);
 
         projectTree.setOpenFileHandler(editors::openFile);
+        projectTree.setNewFileHandler(this::promptNewFile);
         editors.setStatusUpdater(this::updateStatus);
         editors.setProjectRootSupplier(projectTree::getProjectRoot);
 
@@ -109,6 +110,10 @@ public final class MainFrame extends JFrame {
         JMenu file = new JMenu("File");
         file.setMnemonic(KeyEvent.VK_F);
 
+        JMenuItem newFile = new JMenuItem("New File…");
+        newFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));
+        newFile.addActionListener(e -> promptNewFile(projectTree.getSelectedDirectory()));
+
         JMenuItem openDir = new JMenuItem("Open Directory…");
         openDir.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O,
                 InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK));
@@ -155,6 +160,8 @@ public final class MainFrame extends JFrame {
         exit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK));
         exit.addActionListener(e -> exitIde());
 
+        file.add(newFile);
+        file.addSeparator();
         file.add(openDir);
         file.add(openRecentMenu);
         file.add(openFile);
@@ -474,6 +481,59 @@ public final class MainFrame extends JFrame {
 
     FindInFilesPanel findInFilesPanel() {
         return findInFilesPanel;
+    }
+
+    void promptNewFile(Path directory) {
+        if (directory == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Open a project directory first.",
+                    "New File",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        String name = JOptionPane.showInputDialog(
+                this,
+                "File name:",
+                "New File",
+                JOptionPane.PLAIN_MESSAGE);
+        if (name == null) {
+            return;
+        }
+        createNewFileIn(directory, name);
+    }
+
+    Path createNewFileIn(Path directory, String name) {
+        try {
+            Path created = NewFile.create(directory, name);
+            projectTree.refreshDirectory(directory);
+            scriptsPanel.refresh();
+            editors.openFile(created);
+            CodeEditor editor = editors.getActiveEditor();
+            if (editor != null) {
+                editor.getTextPane().requestFocusInWindow();
+            }
+            updateStatus();
+            return created;
+        } catch (java.nio.file.FileAlreadyExistsException ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "A file with that name already exists.",
+                    "New File",
+                    JOptionPane.WARNING_MESSAGE);
+            return null;
+        } catch (IllegalArgumentException | IOException ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Could not create file:\n" + ex.getMessage(),
+                    "New File",
+                    JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+    }
+
+    EditorTabPane editorTabs() {
+        return editors;
     }
 
     private void openDirectory() {

@@ -47,7 +47,7 @@ public final class EditorTabPane extends JPanel {
         emptyLabel = new JLabel(
                 "<html><div style='text-align:center;color:#808080'>"
                         + "<div style='font-size:18px;margin-bottom:8px'>Lide</div>"
-                        + "<div>Open a directory (File → Open Directory) and double-click a file.</div>"
+                        + "<div>Open a directory (File → Open Directory), then File → New File or double-click a file.</div>"
                         + "</div></html>",
                 SwingConstants.CENTER);
         emptyLabel.setFont(IdeTheme.UI_FONT);
