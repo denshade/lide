@@ -348,6 +348,16 @@ public final class CodeEditor extends JPanel {
         return filePath;
     }
 
+    void setFilePath(Path path) {
+        if (path == null) {
+            return;
+        }
+        filePath = path.toAbsolutePath().normalize();
+        language = Language.fromPath(filePath);
+        notifyDirty();
+        scheduleHighlight();
+    }
+
     public boolean isDirty() {
         return dirty;
     }

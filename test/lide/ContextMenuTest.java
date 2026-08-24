@@ -1,7 +1,10 @@
 package lide;
 
+import java.awt.Component;
 import java.awt.GraphicsEnvironment;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -27,6 +30,8 @@ public final class ContextMenuTest {
             testProjectTreeFileMenu();
             testProjectTreeDirectoryMenu();
             testProjectTreeNewFileHandler();
+            testProjectTreeRenameAndCopyPathHandlers();
+            testProjectRootOmitsRename();
             testClickInactiveTabSelectsIt();
             testTabCloseUsesXIcon();
         });
@@ -41,12 +46,11 @@ public final class ContextMenuTest {
         pane.openUntitled("a.txt", "a", Language.PLAIN);
         pane.openUntitled("b.txt", "b", Language.PLAIN);
         JPopupMenu menu = pane.createTabContextMenu(0);
-        assertEqual("tab menu item count", 3, menu.getComponentCount());
-        assertEqual("first item", "Close", ((JMenuItem) menu.getComponent(0)).getText());
-        assertEqual("second item", "Close Others", ((JMenuItem) menu.getComponent(1)).getText());
-        assertEqual("third item", "Close All", ((JMenuItem) menu.getComponent(2)).getText());
+        List<String> labels = menuItemTexts(menu);
+        assertEqual("tab menu items", List.of("Close", "Close Others", "Close All", "Copy Path"), labels);
         assertTrue("Close Others enabled with 2 tabs",
-                ((JMenuItem) menu.getComponent(1)).isEnabled());
+                findItem(menu, "Close Others").isEnabled());
+        assertTrue("Copy Path disabled for untitled", !findItem(menu, "Copy Path").isEnabled());
     }
 
     private static void testCloseOthers() {
@@ -77,9 +81,8 @@ public final class ContextMenuTest {
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
         JPopupMenu menu = tree.createContextMenu(node);
-        assertEqual("file menu item count", 1, menu.getComponentCount());
-        assertEqual("file menu item", "Open", ((JMenuItem) menu.getComponent(0)).getText());
-        ((JMenuItem) menu.getComponent(0)).doClick();
+        assertEqual("file menu items", List.of("Open", "Rename…", "Copy Path"), menuItemTexts(menu));
+        findItem(menu, "Open").doClick();
         assertEqual("open handler path", file, opened.get());
     }
 
@@ -88,9 +91,9 @@ public final class ContextMenuTest {
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(
                 new ProjectTreePanel.FileNode(Path.of("src"), true));
         JPopupMenu menu = tree.createContextMenu(node);
-        assertEqual("dir menu item count", 2, menu.getComponentCount());
-        assertEqual("dir first item", "New File…", ((JMenuItem) menu.getComponent(0)).getText());
-        assertEqual("dir second item", "Refresh", ((JMenuItem) menu.getComponent(1)).getText());
+        assertEqual("dir menu items",
+                List.of("New File…", "Rename…", "Copy Path", "Refresh"),
+                menuItemTexts(menu));
     }
 
     private static void testProjectTreeNewFileHandler() {
@@ -102,8 +105,38 @@ public final class ContextMenuTest {
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(dir, true));
         JPopupMenu menu = tree.createContextMenu(node);
-        ((JMenuItem) menu.getComponent(0)).doClick();
+        findItem(menu, "New File…").doClick();
         assertEqual("new file handler path", dir, createdIn.get());
+    }
+
+    private static void testProjectTreeRenameAndCopyPathHandlers() {
+        ProjectTreePanel tree = new ProjectTreePanel();
+        AtomicReference<Path> renamed = new AtomicReference<>();
+        AtomicReference<Path> copied = new AtomicReference<>();
+        tree.setRenameHandler(renamed::set);
+        tree.setCopyPathHandler(copied::set);
+
+        Path file = Path.of("src", "Demo.java");
+        DefaultMutableTreeNode node =
+                new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
+        JPopupMenu menu = tree.createContextMenu(node);
+        findItem(menu, "Rename…").doClick();
+        findItem(menu, "Copy Path").doClick();
+        assertEqual("rename handler path", file, renamed.get());
+        assertEqual("copy path handler path", file, copied.get());
+    }
+
+    private static void testProjectRootOmitsRename() {
+        ProjectTreePanel tree = new ProjectTreePanel();
+        Path root = Path.of("proj").toAbsolutePath().normalize();
+        tree.openDirectory(root);
+        DefaultMutableTreeNode node =
+                new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(root, true));
+        JPopupMenu menu = tree.createContextMenu(node);
+        assertEqual("root menu items",
+                List.of("New File…", "Copy Path", "Refresh"),
+                menuItemTexts(menu));
+        assertTrue("no rename on project root", findItem(menu, "Rename…") == null);
     }
 
     private static void testClickInactiveTabSelectsIt() {
@@ -145,6 +178,25 @@ public final class ContextMenuTest {
         assertTrue("close button present", close != null);
         assertTrue("close uses icon", close.getIcon() instanceof EditorTabPane.TabCloseIcon);
         assertTrue("close has no text label", close.getText() == null || close.getText().isEmpty());
+    }
+
+    private static List<String> menuItemTexts(JPopupMenu menu) {
+        List<String> labels = new ArrayList<>();
+        for (Component component : menu.getComponents()) {
+            if (component instanceof JMenuItem item) {
+                labels.add(item.getText());
+            }
+        }
+        return labels;
+    }
+
+    private static JMenuItem findItem(JPopupMenu menu, String text) {
+        for (Component component : menu.getComponents()) {
+            if (component instanceof JMenuItem item && text.equals(item.getText())) {
+                return item;
+            }
+        }
+        return null;
     }
 
     private static void assertEqual(String label, Object expected, Object actual) {

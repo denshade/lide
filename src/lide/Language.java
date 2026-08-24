@@ -34,11 +34,27 @@ public enum Language {
                     "delete", "do", "else", "export", "extends", "finally", "for", "function",
                     "if", "import", "in", "instanceof", "let", "new", "return", "super", "switch",
                     "this", "throw", "try", "typeof", "var", "void", "while", "with", "yield",
-                    "async", "await", "of", "static", "true", "false", "null", "undefined"
+                    "async", "await", "of", "static", "true", "false", "null", "undefined",
+                    "from", "as"
             ),
             Set.of(),
             true,
             true
+    ),
+    GO(
+            Set.of(
+                    "break", "case", "chan", "const", "continue", "default", "defer", "else",
+                    "fallthrough", "for", "func", "go", "goto", "if", "import", "interface",
+                    "map", "package", "range", "return", "select", "struct", "switch", "type",
+                    "var", "true", "false", "nil", "iota"
+            ),
+            Set.of(
+                    "any", "bool", "byte", "comparable", "complex64", "complex128", "error",
+                    "float32", "float64", "int", "int8", "int16", "int32", "int64", "rune",
+                    "string", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr"
+            ),
+            true,
+            false
     ),
     PYTHON(
             Set.of(
@@ -92,6 +108,7 @@ public enum Language {
         return switch (ext) {
             case "java" -> JAVA;
             case "js", "mjs", "cjs", "ts", "tsx", "jsx" -> JAVASCRIPT;
+            case "go" -> GO;
             case "py" -> PYTHON;
             case "xml", "html", "htm", "xhtml", "svg", "fxml" -> XML;
             case "json", "md", "txt", "css", "properties", "gradle", "kts" -> PLAIN;

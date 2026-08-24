@@ -79,6 +79,20 @@ public final class BinaryViewer extends JPanel {
         return filePath;
     }
 
+    void setFilePath(Path path) {
+        if (path == null) {
+            return;
+        }
+        filePath = path.toAbsolutePath().normalize();
+        String name = filePath.getFileName() != null
+                ? filePath.getFileName().toString()
+                : filePath.toString();
+        String trunc = displayedBytes < fileSize
+                ? " (showing first " + displayedBytes + " bytes)"
+                : "";
+        header.setText("Binary file — " + name + " — " + fileSize + " bytes" + trunc);
+    }
+
     public String getTitle() {
         if (filePath == null) {
             return "Binary";

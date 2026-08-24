@@ -3,6 +3,8 @@ package lide;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
@@ -41,6 +43,8 @@ public final class MainFrame extends JFrame {
     private FindInFilesPanel findInFilesPanel;
     private JMenu openRecentMenu;
     private final List<JMenuItem> ladleItems = new ArrayList<>();
+    private final KeyEventDispatcher ladleHotkeyDispatcher =
+            e -> LadleHotkeys.dispatch(e, this, this::runLadle);
 
     public MainFrame() {
         super("Lide");
@@ -52,6 +56,7 @@ public final class MainFrame extends JFrame {
 
         projectTree.setOpenFileHandler(editors::openFile);
         projectTree.setNewFileHandler(this::promptNewFile);
+        projectTree.setRenameHandler(this::promptRename);
         editors.setStatusUpdater(this::updateStatus);
         editors.setProjectRootSupplier(projectTree::getProjectRoot);
 
@@ -100,6 +105,15 @@ public final class MainFrame extends JFrame {
                 exitIde();
             }
         });
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .addKeyEventDispatcher(ladleHotkeyDispatcher);
+    }
+
+    @Override
+    public void dispose() {
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .removeKeyEventDispatcher(ladleHotkeyDispatcher);
+        super.dispose();
     }
 
     private JMenuBar buildMenuBar() {
@@ -196,9 +210,12 @@ public final class MainFrame extends JFrame {
         install.addActionListener(e -> installLadle());
 
         JMenuItem build = ladleItem("Build", LadleCommand.BUILD);
+        build.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
         JMenuItem test = ladleItem("Test", LadleCommand.TEST);
+        test.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F6, 0));
         JMenuItem release = ladleItem("Release", LadleCommand.RELEASE);
         JMenuItem dependencies = ladleItem("Download Dependencies", LadleCommand.DEPENDENCY);
+        dependencies.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0));
         JMenuItem clear = ladleItem("Clear", LadleCommand.CLEAR);
 
         ladle.add(install);
@@ -527,6 +544,65 @@ public final class MainFrame extends JFrame {
                     this,
                     "Could not create file:\n" + ex.getMessage(),
                     "New File",
+                    JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+    }
+
+    void promptRename(Path path) {
+        if (path == null) {
+            return;
+        }
+        if (projectTree.isProjectRoot(path)) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Cannot rename the open project folder.",
+                    "Rename",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        String current = path.getFileName() != null ? path.getFileName().toString() : path.toString();
+        Object entered = JOptionPane.showInputDialog(
+                this,
+                "New name:",
+                "Rename",
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                null,
+                current);
+        if (entered == null) {
+            return;
+        }
+        renamePath(path, entered.toString());
+    }
+
+    Path renamePath(Path source, String newName) {
+        if (projectTree.isProjectRoot(source)) {
+            return null;
+        }
+        try {
+            Path from = source.toAbsolutePath().normalize();
+            Path renamed = FileRename.rename(from, newName);
+            editors.retargetOpenFiles(from, renamed);
+            Path parent = renamed.getParent();
+            if (parent != null) {
+                projectTree.refreshDirectory(parent);
+            }
+            scriptsPanel.refresh();
+            updateStatus();
+            return renamed;
+        } catch (java.nio.file.FileAlreadyExistsException ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "A file or folder with that name already exists.",
+                    "Rename",
+                    JOptionPane.WARNING_MESSAGE);
+            return null;
+        } catch (IllegalArgumentException | IOException ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Could not rename:\n" + ex.getMessage(),
+                    "Rename",
                     JOptionPane.ERROR_MESSAGE);
             return null;
         }

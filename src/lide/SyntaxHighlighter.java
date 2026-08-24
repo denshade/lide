@@ -67,8 +67,26 @@ public final class SyntaxHighlighter {
                 continue;
             }
 
+            if ((language == Language.GO || language == Language.JAVASCRIPT) && c == '`') {
+                int end = scanBacktick(text, i, language == Language.JAVASCRIPT);
+                apply(doc, i, end - i, stringAttr);
+                i = end;
+                continue;
+            }
+
+            if (language == Language.JAVASCRIPT && c == '<' && looksLikeJsxTag(text, i)) {
+                int end = scanJsxTag(text, i);
+                apply(doc, i, end - i, keywordAttr);
+                highlightJsxExpressions(doc, text, i, end);
+                highlightXmlAttrs(doc, text, i, end);
+                i = end;
+                continue;
+            }
+
             if (c == '"' || c == '\'') {
-                int end = scanString(text, i, c, language == Language.JAVA || language == Language.JAVASCRIPT);
+                int end = scanString(text, i, c, language == Language.JAVA
+                        || language == Language.JAVASCRIPT
+                        || language == Language.GO);
                 apply(doc, i, end - i, stringAttr);
                 i = end;
                 continue;
@@ -94,7 +112,8 @@ public final class SyntaxHighlighter {
                 if (language.keywords().contains(word)) {
                     apply(doc, i, end - i, keywordAttr);
                 } else if (language.types().contains(word)
-                        || (language == Language.JAVA && looksLikeType(word))) {
+                        || ((language == Language.JAVA || language == Language.GO)
+                                && looksLikeType(word))) {
                     apply(doc, i, end - i, typeAttr);
                 }
                 i = end;
@@ -141,6 +160,101 @@ public final class SyntaxHighlighter {
                 i = sEnd - 1;
             }
         }
+    }
+
+    private void highlightJsxExpressions(StyledDocument doc, String text, int start, int end) {
+        int brace = 0;
+        int exprStart = -1;
+        for (int i = start; i < end; i++) {
+            char c = text.charAt(i);
+            if (c == '"' || c == '\'') {
+                int sEnd = scanString(text, i, c, false);
+                i = Math.min(sEnd, end) - 1;
+                continue;
+            }
+            if (c == '{') {
+                if (brace == 0) {
+                    exprStart = i;
+                }
+                brace++;
+            } else if (c == '}' && brace > 0) {
+                brace--;
+                if (brace == 0 && exprStart >= 0) {
+                    apply(doc, exprStart, i - exprStart + 1, defaultAttr);
+                    exprStart = -1;
+                }
+            }
+        }
+    }
+
+    private static boolean looksLikeJsxTag(String text, int start) {
+        int n = text.length();
+        if (start + 1 >= n) {
+            return false;
+        }
+        char next = text.charAt(start + 1);
+        if (next == '>' || next == '/') {
+            return true;
+        }
+        if (!isIdentStart(next)) {
+            return false;
+        }
+        int prev = start - 1;
+        while (prev >= 0 && isJsxSpace(text.charAt(prev))) {
+            prev--;
+        }
+        if (prev >= 0 && (isIdentChar(text.charAt(prev)) || text.charAt(prev) == '.')) {
+            int wordStart = prev;
+            while (wordStart >= 0 && isIdentChar(text.charAt(wordStart))) {
+                wordStart--;
+            }
+            String word = text.substring(wordStart + 1, prev + 1);
+            return Language.JAVASCRIPT.keywords().contains(word);
+        }
+        return true;
+    }
+
+    private static int scanJsxTag(String text, int start) {
+        int i = start + 1;
+        int n = text.length();
+        int brace = 0;
+        while (i < n) {
+            char c = text.charAt(i);
+            if (brace == 0 && (c == '"' || c == '\'' || c == '`')) {
+                i = c == '`' ? scanBacktick(text, i, true) : scanString(text, i, c, true);
+                continue;
+            }
+            if (c == '{') {
+                brace++;
+            } else if (c == '}' && brace > 0) {
+                brace--;
+            } else if (c == '>' && brace == 0) {
+                return i + 1;
+            }
+            i++;
+        }
+        return n;
+    }
+
+    private static int scanBacktick(String text, int start, boolean allowEscapes) {
+        int i = start + 1;
+        int n = text.length();
+        while (i < n) {
+            char c = text.charAt(i);
+            if (allowEscapes && c == '\\' && i + 1 < n) {
+                i += 2;
+                continue;
+            }
+            if (c == '`') {
+                return i + 1;
+            }
+            i++;
+        }
+        return n;
+    }
+
+    private static boolean isJsxSpace(char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\r';
     }
 
     private static boolean looksLikeType(String word) {

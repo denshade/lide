@@ -234,6 +234,7 @@ public final class ClassNavigator {
         return switch (language) {
             case JAVA -> ".java";
             case JAVASCRIPT -> ".js";
+            case GO -> ".go";
             case PYTHON -> ".py";
             default -> ".java";
         };

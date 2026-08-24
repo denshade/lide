@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+JAR="$ROOT/lib/ladle.jar"
+if [ ! -f "$JAR" ]; then
+  echo "Cannot find ladle.jar at $JAR" >&2
+  echo "Run ./build.sh to build it, or commit lib/ladle.jar in your project." >&2
+  exit 1
+fi
+
+if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+  JAVA="$JAVA_HOME/bin/java"
+else
+  JAVA="java"
+fi
+
+exec "$JAVA" -jar "$JAR" "$@"

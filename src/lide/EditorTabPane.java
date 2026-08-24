@@ -529,6 +529,7 @@ public final class EditorTabPane extends JPanel {
             JMenuItem closeAll = new JMenuItem("Close All");
             closeAll.addActionListener(e -> closeAllTabs());
             menu.add(closeAll);
+            addCopyPathItem(menu, editor.getFilePath());
             return menu;
         }
         if (component instanceof BinaryViewer viewer) {
@@ -544,8 +545,64 @@ public final class EditorTabPane extends JPanel {
             JMenuItem closeAll = new JMenuItem("Close All");
             closeAll.addActionListener(e -> closeAllTabs());
             menu.add(closeAll);
+            addCopyPathItem(menu, viewer.getFilePath());
         }
         return menu;
+    }
+
+    private static void addCopyPathItem(JPopupMenu menu, Path path) {
+        menu.addSeparator();
+        JMenuItem copyPath = new JMenuItem("Copy Path");
+        copyPath.setEnabled(path != null);
+        copyPath.addActionListener(e -> PathClipboard.copy(path));
+        menu.add(copyPath);
+    }
+
+    void retargetOpenFiles(Path from, Path to) {
+        if (from == null || to == null) {
+            return;
+        }
+        Map<Path, CodeEditor> nextEditors = new HashMap<>();
+        for (Map.Entry<Path, CodeEditor> entry : openEditors.entrySet()) {
+            Path remapped = FileRename.remapOpenPath(entry.getKey(), from, to);
+            if (remapped != null) {
+                entry.getValue().setFilePath(remapped);
+                updateTabTitle(entry.getValue(), entry.getValue().getTitle());
+                nextEditors.put(remapped.toAbsolutePath().normalize(), entry.getValue());
+            } else {
+                nextEditors.put(entry.getKey(), entry.getValue());
+            }
+        }
+        openEditors.clear();
+        openEditors.putAll(nextEditors);
+
+        Map<Path, BinaryViewer> nextBinary = new HashMap<>();
+        for (Map.Entry<Path, BinaryViewer> entry : openBinary.entrySet()) {
+            Path remapped = FileRename.remapOpenPath(entry.getKey(), from, to);
+            if (remapped != null) {
+                entry.getValue().setFilePath(remapped);
+                updateTabTitle(entry.getValue(), entry.getValue().getTitle());
+                nextBinary.put(remapped.toAbsolutePath().normalize(), entry.getValue());
+            } else {
+                nextBinary.put(entry.getKey(), entry.getValue());
+            }
+        }
+        openBinary.clear();
+        openBinary.putAll(nextBinary);
+        statusUpdater.run();
+    }
+
+    private void updateTabTitle(Component component, String title) {
+        int index = tabs.indexOfComponent(component);
+        if (index < 0) {
+            return;
+        }
+        Component tab = tabs.getTabComponentAt(index);
+        if (tab instanceof TabHeader header) {
+            header.setTitle(title);
+        } else {
+            tabs.setTitleAt(index, title);
+        }
     }
 
     void closeOtherTabs(Component keep) {

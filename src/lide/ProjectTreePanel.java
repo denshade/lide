@@ -45,6 +45,9 @@ public final class ProjectTreePanel extends JPanel {
     };
     private Consumer<Path> newFileHandler = path -> {
     };
+    private Consumer<Path> renameHandler = path -> {
+    };
+    private Consumer<Path> copyPathHandler = PathClipboard::copy;
     private Path projectRoot;
     private int loadGeneration;
 
@@ -140,6 +143,16 @@ public final class ProjectTreePanel extends JPanel {
             JMenuItem newFile = new JMenuItem("New File…");
             newFile.addActionListener(e -> newFileHandler.accept(fileNode.path()));
             menu.add(newFile);
+        }
+        if (!isProjectRoot(fileNode.path())) {
+            JMenuItem rename = new JMenuItem("Rename…");
+            rename.addActionListener(e -> renameHandler.accept(fileNode.path()));
+            menu.add(rename);
+        }
+        JMenuItem copyPath = new JMenuItem("Copy Path");
+        copyPath.addActionListener(e -> copyPathHandler.accept(fileNode.path()));
+        menu.add(copyPath);
+        if (fileNode.directory()) {
             JMenuItem refresh = new JMenuItem("Refresh");
             refresh.addActionListener(e -> refreshNode(node));
             menu.add(refresh);
@@ -160,6 +173,22 @@ public final class ProjectTreePanel extends JPanel {
 
     public void setNewFileHandler(Consumer<Path> newFileHandler) {
         this.newFileHandler = newFileHandler;
+    }
+
+    public void setRenameHandler(Consumer<Path> renameHandler) {
+        this.renameHandler = renameHandler;
+    }
+
+    public void setCopyPathHandler(Consumer<Path> copyPathHandler) {
+        this.copyPathHandler = copyPathHandler;
+    }
+
+    boolean isProjectRoot(Path path) {
+        if (projectRoot == null || path == null) {
+            return false;
+        }
+        return projectRoot.toAbsolutePath().normalize()
+                .equals(path.toAbsolutePath().normalize());
     }
 
     public Path getProjectRoot() {
