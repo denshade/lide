@@ -66,7 +66,7 @@ public final class FindInFilesPanel extends JPanel {
             }
         });
 
-        styleButton(minimizeButton);
+        IdeTheme.styleButton(minimizeButton);
         minimizeButton.setPreferredSize(new Dimension(28, 22));
         minimizeButton.addActionListener(e -> setMinimized(!minimized));
 
@@ -102,7 +102,7 @@ public final class FindInFilesPanel extends JPanel {
             }
         });
 
-        styleButton(findButton);
+        IdeTheme.styleButton(findButton);
         findButton.addActionListener(e -> runSearch());
 
         statusLabel.setForeground(IdeTheme.FG_DIM);
@@ -153,18 +153,6 @@ public final class FindInFilesPanel extends JPanel {
         add(toolbar, BorderLayout.NORTH);
         add(body, BorderLayout.CENTER);
         setMinimized(true);
-    }
-
-    private static void styleButton(JButton button) {
-        button.setFont(IdeTheme.UI_FONT);
-        button.setFocusable(false);
-        button.setContentAreaFilled(true);
-        button.setOpaque(true);
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(IdeTheme.BORDER),
-                BorderFactory.createEmptyBorder(2, 8, 2, 8)));
-        button.addPropertyChangeListener("enabled", e -> ScriptsPanel.applyButtonColors(button));
-        ScriptsPanel.applyButtonColors(button);
     }
 
     public void setOpenMatchHandler(Consumer<ProjectFinder.Match> openMatchHandler) {

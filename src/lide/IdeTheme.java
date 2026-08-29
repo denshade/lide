@@ -7,10 +7,12 @@ import java.awt.Graphics;
 import java.awt.Insets;
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
+import javax.swing.JButton;
 import javax.swing.UIManager;
 import javax.swing.plaf.ColorUIResource;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.plaf.InsetsUIResource;
+import javax.swing.plaf.basic.BasicButtonUI;
 
 /**
  * IntelliJ-inspired dark theme applied to Swing UI defaults.
@@ -22,8 +24,14 @@ public final class IdeTheme {
     public static final Color BG_EDITOR = new Color(0x2B2B2B);
     public static final Color FG = new Color(0xA9B7C6);
     public static final Color FG_DIM = new Color(0x808080);
-    /** Dimmer than FG_DIM — used for disabled controls on the dark theme. */
-    public static final Color FG_DISABLED = new Color(0x555555);
+    /** Near-white — enabled buttons and menu items. */
+    public static final Color FG_BRIGHT = new Color(0xF0F0F0);
+    /** Clearly faded vs FG_BRIGHT, still readable on dark chrome. */
+    public static final Color FG_DISABLED = new Color(0x6A6A6A);
+    public static final Color BUTTON_BG = new Color(0x54585A);
+    public static final Color BUTTON_BG_DISABLED = new Color(0x2E2E2E);
+    public static final Color BUTTON_BORDER = new Color(0x8A9094);
+    public static final Color BUTTON_BORDER_DISABLED = new Color(0x3A3A3A);
     public static final Color SELECTION = new Color(0x214283);
     public static final Color CARET = new Color(0xBBBBBB);
     public static final Color BORDER = new Color(0x515151);
@@ -109,8 +117,8 @@ public final class IdeTheme {
         UIManager.put("TextArea.selectionBackground", new ColorUIResource(SELECTION));
         UIManager.put("TextArea.font", new FontUIResource(EDITOR_FONT));
 
-        UIManager.put("Button.background", new ColorUIResource(BG_RAISED));
-        UIManager.put("Button.foreground", new ColorUIResource(FG));
+        UIManager.put("Button.background", new ColorUIResource(BUTTON_BG));
+        UIManager.put("Button.foreground", new ColorUIResource(FG_BRIGHT));
         UIManager.put("Button.disabledText", new ColorUIResource(FG_DISABLED));
         UIManager.put("Button.disabledForeground", new ColorUIResource(FG_DISABLED));
         UIManager.put("CheckBox.foreground", new ColorUIResource(FG));
@@ -133,6 +141,7 @@ public final class IdeTheme {
      * zero-width check icons for tighter layout.
      */
     static void applyCompactMenus() {
+        UIManager.put("MenuBarUI", "javax.swing.plaf.basic.BasicMenuBarUI");
         UIManager.put("MenuItemUI", "javax.swing.plaf.basic.BasicMenuItemUI");
         UIManager.put("MenuUI", "javax.swing.plaf.basic.BasicMenuUI");
         UIManager.put("PopupMenuUI", "javax.swing.plaf.basic.BasicPopupMenuUI");
@@ -151,7 +160,7 @@ public final class IdeTheme {
         UIManager.put("Menu.margin", new InsetsUIResource(0, 0, 0, 0));
         UIManager.put("Menu.acceleratorForeground", new ColorUIResource(FG_DIM));
         UIManager.put("Menu.acceleratorSelectionForeground", new ColorUIResource(Color.WHITE));
-        UIManager.put("Menu.disabledForeground", new ColorUIResource(FG_DISABLED));
+        UIManager.put("Menu.disabledForeground", new ColorUIResource(FG_DIM));
 
         UIManager.put("MenuItem.background", new ColorUIResource(BG_RAISED));
         UIManager.put("MenuItem.foreground", new ColorUIResource(FG));
@@ -159,7 +168,7 @@ public final class IdeTheme {
         UIManager.put("MenuItem.selectionForeground", new ColorUIResource(Color.WHITE));
         UIManager.put("MenuItem.acceleratorForeground", new ColorUIResource(FG_DIM));
         UIManager.put("MenuItem.acceleratorSelectionForeground", new ColorUIResource(Color.WHITE));
-        UIManager.put("MenuItem.disabledForeground", new ColorUIResource(FG_DISABLED));
+        UIManager.put("MenuItem.disabledForeground", new ColorUIResource(FG_DIM));
         UIManager.put("MenuItem.font", new FontUIResource(UI_FONT));
         UIManager.put("MenuItem.acceleratorFont", new FontUIResource(UI_FONT));
         UIManager.put("MenuItem.border", BorderFactory.createEmptyBorder());
@@ -176,6 +185,30 @@ public final class IdeTheme {
         UIManager.put("PopupMenu.background", new ColorUIResource(BG_RAISED));
         UIManager.put("PopupMenu.border", BorderFactory.createLineBorder(BORDER));
         UIManager.put("PopupMenu.borderInsets", new Insets(2, 2, 2, 2));
+    }
+
+    /**
+     * Dark-theme button chrome that actually shows enabled vs disabled.
+     * Windows button UI ignores background, so these use basic painting.
+     */
+    static void styleButton(JButton button) {
+        button.setUI(new BasicButtonUI());
+        button.setFont(UI_FONT);
+        button.setFocusable(false);
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
+        button.setBorderPainted(true);
+        button.addPropertyChangeListener("enabled", e -> applyButtonColors(button));
+        applyButtonColors(button);
+    }
+
+    static void applyButtonColors(JButton button) {
+        boolean on = button.isEnabled();
+        button.setForeground(on ? FG_BRIGHT : FG_DISABLED);
+        button.setBackground(on ? BUTTON_BG : BUTTON_BG_DISABLED);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(on ? BUTTON_BORDER : BUTTON_BORDER_DISABLED),
+                BorderFactory.createEmptyBorder(2, 10, 2, 10)));
     }
 
     private IdeTheme() {

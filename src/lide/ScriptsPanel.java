@@ -62,9 +62,9 @@ public final class ScriptsPanel extends JPanel {
 
         titleLabel.setFont(IdeTheme.UI_FONT.deriveFont(Font.BOLD, 12f));
         titleLabel.setForeground(IdeTheme.FG);
-        styleButton(refreshButton);
-        styleButton(runButton);
-        styleButton(stopButton);
+        IdeTheme.styleButton(refreshButton);
+        IdeTheme.styleButton(runButton);
+        IdeTheme.styleButton(stopButton);
         stopButton.setEnabled(false);
 
         refreshButton.addActionListener(e -> refresh());
@@ -126,28 +126,6 @@ public final class ScriptsPanel extends JPanel {
         add(toolbar, BorderLayout.NORTH);
         add(split, BorderLayout.CENTER);
         setProjectRoot(null);
-    }
-
-    private static void styleButton(JButton button) {
-        button.setFont(IdeTheme.UI_FONT);
-        button.setFocusable(false);
-        button.setContentAreaFilled(true);
-        button.setOpaque(true);
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(IdeTheme.BORDER),
-                BorderFactory.createEmptyBorder(2, 10, 2, 10)));
-        button.addPropertyChangeListener("enabled", e -> applyButtonColors(button));
-        applyButtonColors(button);
-    }
-
-    static void applyButtonColors(JButton button) {
-        if (button.isEnabled()) {
-            button.setForeground(IdeTheme.FG);
-            button.setBackground(IdeTheme.BG_RAISED);
-        } else {
-            button.setForeground(IdeTheme.FG_DISABLED);
-            button.setBackground(IdeTheme.BG);
-        }
     }
 
     public void setProjectRoot(Path projectRoot) {

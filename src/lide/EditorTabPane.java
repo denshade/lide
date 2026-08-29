@@ -33,10 +33,13 @@ public final class EditorTabPane extends JPanel {
     private final JTabbedPane tabs = new JTabbedPane();
     private final Map<Path, CodeEditor> openEditors = new HashMap<>();
     private final Map<Path, BinaryViewer> openBinary = new HashMap<>();
+    private final NavigationHistory navigationHistory = new NavigationHistory();
     private final JLabel emptyLabel;
     private final FindBar findBar = new FindBar();
     private final JPanel contentHost = new JPanel(new BorderLayout());
     private Runnable statusUpdater = () -> {
+    };
+    private Runnable navigationListener = () -> {
     };
     private java.util.function.Supplier<Path> projectRootSupplier = () -> null;
 
@@ -56,7 +59,10 @@ public final class EditorTabPane extends JPanel {
         emptyLabel.setOpaque(true);
 
         tabs.setFont(IdeTheme.UI_FONT);
-        tabs.addChangeListener(e -> statusUpdater.run());
+        tabs.addChangeListener(e -> {
+            recordActiveFile();
+            statusUpdater.run();
+        });
         tabs.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -86,6 +92,11 @@ public final class EditorTabPane extends JPanel {
 
     public void setProjectRootSupplier(java.util.function.Supplier<Path> projectRootSupplier) {
         this.projectRootSupplier = projectRootSupplier;
+    }
+
+    public void setNavigationListener(Runnable navigationListener) {
+        this.navigationListener = navigationListener != null ? navigationListener : () -> {
+        };
     }
 
     public void openFile(Path path) {
@@ -205,6 +216,70 @@ public final class EditorTabPane extends JPanel {
 
     public void navigateTo(ClassNavigator.Target target) {
         openFile(target.path(), target.caretOffset());
+    }
+
+    public boolean canNavigateBack() {
+        return navigationHistory.canGoBack();
+    }
+
+    public boolean canNavigateForward() {
+        return navigationHistory.canGoForward();
+    }
+
+    public boolean navigateBack() {
+        while (navigationHistory.canGoBack()) {
+            Path path = navigationHistory.back();
+            if (canOpen(path)) {
+                openFile(path);
+                navigationListener.run();
+                return true;
+            }
+        }
+        navigationListener.run();
+        return false;
+    }
+
+    public boolean navigateForward() {
+        while (navigationHistory.canGoForward()) {
+            Path path = navigationHistory.forward();
+            if (canOpen(path)) {
+                openFile(path);
+                navigationListener.run();
+                return true;
+            }
+        }
+        navigationListener.run();
+        return false;
+    }
+
+    public Path getActiveFilePath() {
+        CodeEditor editor = getActiveEditor();
+        if (editor != null && editor.getFilePath() != null) {
+            return editor.getFilePath().toAbsolutePath().normalize();
+        }
+        BinaryViewer binary = getActiveBinaryViewer();
+        if (binary != null && binary.getFilePath() != null) {
+            return binary.getFilePath().toAbsolutePath().normalize();
+        }
+        return null;
+    }
+
+    private void recordActiveFile() {
+        Path path = getActiveFilePath();
+        if (path != null) {
+            navigationHistory.visit(path);
+        }
+        navigationListener.run();
+    }
+
+    private boolean canOpen(Path path) {
+        if (path == null) {
+            return false;
+        }
+        Path normalized = path.toAbsolutePath().normalize();
+        return openEditors.containsKey(normalized)
+                || openBinary.containsKey(normalized)
+                || java.nio.file.Files.isRegularFile(normalized);
     }
 
     private void configureEditor(CodeEditor editor) {
@@ -589,6 +664,7 @@ public final class EditorTabPane extends JPanel {
         }
         openBinary.clear();
         openBinary.putAll(nextBinary);
+        navigationHistory.remap(from, to);
         statusUpdater.run();
     }
 

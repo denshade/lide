@@ -18,6 +18,7 @@ public final class MenuSpacingTest {
 
     public static void main(String[] args) throws Exception {
         testCompactMenuDefaults();
+        testButtonEnabledDisabledContrast();
         if (!GraphicsEnvironment.isHeadless()) {
             SwingUtilities.invokeAndWait(MenuSpacingTest::testMenuItemUsesBasicUiAndTightLeft);
         }
@@ -36,7 +37,7 @@ public final class MenuSpacingTest {
         assertEqual("check icon width", 0, ((Icon) checkIcon).getIconWidth());
         assertEqual("afterCheckIconGap", 0, UIManager.get("MenuItem.afterCheckIconGap"));
         assertEqual("minimumTextOffset", 0, UIManager.get("MenuItem.minimumTextOffset"));
-        assertEqual("disabled fg", IdeTheme.FG_DISABLED.getRGB(),
+        assertEqual("disabled fg", IdeTheme.FG_DIM.getRGB(),
                 UIManager.getColor("MenuItem.disabledForeground").getRGB());
         assertEqual("button disabled text", IdeTheme.FG_DISABLED.getRGB(),
                 UIManager.getColor("Button.disabledText").getRGB());
@@ -69,7 +70,24 @@ public final class MenuSpacingTest {
                 gutter < 40);
 
         assertTrue("disabled fg darker than enabled",
-                luminance(IdeTheme.FG_DISABLED) < luminance(IdeTheme.FG));
+                luminance(IdeTheme.FG_DIM) < luminance(IdeTheme.FG));
+    }
+
+    private static void testButtonEnabledDisabledContrast() {
+        javax.swing.JButton on = new javax.swing.JButton("Run");
+        javax.swing.JButton off = new javax.swing.JButton("Stop");
+        IdeTheme.styleButton(on);
+        IdeTheme.styleButton(off);
+        off.setEnabled(false);
+
+        assertEqual("enabled fg", IdeTheme.FG_BRIGHT, on.getForeground());
+        assertEqual("enabled bg", IdeTheme.BUTTON_BG, on.getBackground());
+        assertEqual("disabled fg", IdeTheme.FG_DISABLED, off.getForeground());
+        assertEqual("disabled bg", IdeTheme.BUTTON_BG_DISABLED, off.getBackground());
+        assertTrue("enabled fill lighter than disabled",
+                luminance(on.getBackground()) > luminance(off.getBackground()));
+        assertTrue("enabled label brighter than disabled",
+                luminance(on.getForeground()) > luminance(off.getForeground()) + 80);
     }
 
     private static double luminance(java.awt.Color c) {

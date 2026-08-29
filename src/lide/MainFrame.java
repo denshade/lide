@@ -42,9 +42,13 @@ public final class MainFrame extends JFrame {
     private ScriptsPanel scriptsPanel;
     private FindInFilesPanel findInFilesPanel;
     private JMenu openRecentMenu;
+    private JMenuItem backItem;
+    private JMenuItem forwardItem;
     private final List<JMenuItem> ladleItems = new ArrayList<>();
     private final KeyEventDispatcher ladleHotkeyDispatcher =
             e -> LadleHotkeys.dispatch(e, this, this::runLadle);
+    private final KeyEventDispatcher navigationHotkeyDispatcher =
+            e -> NavigationHotkeys.dispatch(e, this, this::handleNavigationHotkey);
 
     public MainFrame() {
         super("Lide");
@@ -58,6 +62,7 @@ public final class MainFrame extends JFrame {
         projectTree.setNewFileHandler(this::promptNewFile);
         projectTree.setRenameHandler(this::promptRename);
         editors.setStatusUpdater(this::updateStatus);
+        editors.setNavigationListener(this::updateNavigateMenu);
         editors.setProjectRootSupplier(projectTree::getProjectRoot);
 
         JSplitPane editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, projectTree, editors);
@@ -107,12 +112,16 @@ public final class MainFrame extends JFrame {
         });
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
                 .addKeyEventDispatcher(ladleHotkeyDispatcher);
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .addKeyEventDispatcher(navigationHotkeyDispatcher);
     }
 
     @Override
     public void dispose() {
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
                 .removeKeyEventDispatcher(ladleHotkeyDispatcher);
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .removeKeyEventDispatcher(navigationHotkeyDispatcher);
         super.dispose();
     }
 
@@ -187,6 +196,8 @@ public final class MainFrame extends JFrame {
 
         JMenu edit = buildEditMenu();
 
+        JMenu navigate = buildNavigateMenu();
+
         JMenu ladle = buildLadleMenu();
 
         JMenu view = new JMenu("View");
@@ -197,9 +208,69 @@ public final class MainFrame extends JFrame {
 
         bar.add(file);
         bar.add(edit);
+        bar.add(navigate);
         bar.add(ladle);
         bar.add(view);
         return bar;
+    }
+
+    private JMenu buildNavigateMenu() {
+        JMenu navigate = new JMenu("Navigate");
+        navigate.setMnemonic(KeyEvent.VK_N);
+
+        backItem = new JMenuItem("Back");
+        backItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, InputEvent.ALT_DOWN_MASK));
+        backItem.addActionListener(e -> {
+            editors.navigateBack();
+            updateStatus();
+            updateNavigateMenu();
+        });
+
+        forwardItem = new JMenuItem("Forward");
+        forwardItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, InputEvent.ALT_DOWN_MASK));
+        forwardItem.addActionListener(e -> {
+            editors.navigateForward();
+            updateStatus();
+            updateNavigateMenu();
+        });
+
+        navigate.add(backItem);
+        navigate.add(forwardItem);
+        updateNavigateMenu();
+
+        navigate.addMenuListener(new MenuListener() {
+            @Override
+            public void menuSelected(MenuEvent e) {
+                updateNavigateMenu();
+            }
+
+            @Override
+            public void menuDeselected(MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(MenuEvent e) {
+            }
+        });
+        return navigate;
+    }
+
+    void updateNavigateMenu() {
+        if (backItem == null || forwardItem == null) {
+            return;
+        }
+        backItem.setEnabled(editors.canNavigateBack());
+        forwardItem.setEnabled(editors.canNavigateForward());
+    }
+
+    void handleNavigationHotkey(NavigationHotkeys.Action action) {
+        if (action == NavigationHotkeys.Action.FORWARD) {
+            editors.navigateForward();
+        } else {
+            editors.navigateBack();
+        }
+        updateStatus();
+        updateNavigateMenu();
     }
 
     private JMenu buildLadleMenu() {

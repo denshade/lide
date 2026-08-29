@@ -20,6 +20,11 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 - Right-click a tab for a context menu with **Close**, **Close Others**, **Close All**, and **Copy Path**.
 - Closing a dirty tab prompts to save, discard, or cancel.
 
+## Navigation
+
+- The **Navigate** menu offers **Back** (Alt+Left) and **Forward** (Alt+Right) to move through recently visited files in this session.
+- Opening a file or switching to another open tab records it in the history. **Back** returns to the previous file (reopening the tab if it was closed). **Forward** undoes Back. Opening or switching to a different file after going back clears the forward list.
+
 ## Editing
 
 - The editor shows line numbers and applies deferred syntax highlighting for supported languages (Java, JavaScript/JSX, TypeScript, Go, Python, XML/HTML, and plain text).
@@ -49,7 +54,7 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 
 - Dark IntelliJ-inspired theme for the tree, tabs, editor, and menus.
 - Menus use a compact layout without the Windows checkmark gutter on the left.
-- Enabled controls use the normal foreground; disabled controls use a distinctly dimmer color.
+- Enabled buttons use a brighter label, lighter fill, and stronger border; disabled buttons use a faded label, darker fill, and a muted border so the two states are easy to tell apart. Menu text uses the normal editor foreground so it stays readable; disabled menu items use a dimmer gray.
 - Status bar shows the active file path, language, and modified state.
 - Application icons appear on the window and taskbar; run `create-launcher.bat` to generate `assets/lide.ico` and a `Lide.lnk` shortcut that launches the IDE with that icon.
 - **View → About Lide** opens an information dialog showing the application icon (64×64, taken from the same icon set used for the window) next to a short description of the IDE.
