@@ -33,6 +33,8 @@ public final class NavigateMenuTest {
         testSwitchingOpenTabRecordsHistory();
         testBackSkipsDeletedFile();
         testBackFollowsRenamedFile();
+        testToTestAndToImplementation();
+        testToTestDisabledWhenMissing();
         System.out.println("Passed: " + passed + ", Failed: " + failed);
         if (failed > 0) {
             System.exit(1);
@@ -45,18 +47,31 @@ public final class NavigateMenuTest {
             JMenu navigate = findMenu(frame.getJMenuBar(), "Navigate");
             assertTrue("Navigate menu exists", navigate != null);
             List<String> labels = itemLabels(navigate);
-            assertEqual("item count", 2, labels.size());
+            assertEqual("item count", 4, labels.size());
             assertEqual("back", "Back", labels.get(0));
             assertEqual("forward", "Forward", labels.get(1));
+            assertEqual("to test", "To Test", labels.get(2));
+            assertEqual("to implementation", "To Implementation", labels.get(3));
             assertEqual("back accelerator",
                     KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, InputEvent.ALT_DOWN_MASK),
                     findMenuItem(navigate, "Back").getAccelerator());
             assertEqual("forward accelerator",
                     KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, InputEvent.ALT_DOWN_MASK),
                     findMenuItem(navigate, "Forward").getAccelerator());
+            assertEqual("to test accelerator",
+                    KeyStroke.getKeyStroke(KeyEvent.VK_T,
+                            InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK),
+                    findMenuItem(navigate, "To Test").getAccelerator());
+            assertEqual("to implementation accelerator",
+                    KeyStroke.getKeyStroke(KeyEvent.VK_I,
+                            InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK),
+                    findMenuItem(navigate, "To Implementation").getAccelerator());
             frame.updateNavigateMenu();
             assertTrue("back disabled initially", !findMenuItem(navigate, "Back").isEnabled());
             assertTrue("forward disabled initially", !findMenuItem(navigate, "Forward").isEnabled());
+            assertTrue("to test disabled initially", !findMenuItem(navigate, "To Test").isEnabled());
+            assertTrue("to implementation disabled initially",
+                    !findMenuItem(navigate, "To Implementation").isEnabled());
         } finally {
             frame.dispose();
         }
@@ -219,6 +234,71 @@ public final class NavigateMenuTest {
             });
         } finally {
             deleteRecursive(dir);
+        }
+    }
+
+    private static void testToTestAndToImplementation() throws Exception {
+        Path root = Files.createTempDirectory("lide-nav-toggle");
+        try {
+            Path src = root.resolve("src").resolve("lide");
+            Path test = root.resolve("test").resolve("lide");
+            Files.createDirectories(src);
+            Files.createDirectories(test);
+            Path impl = src.resolve("Foo.java");
+            Path testFile = test.resolve("FooTest.java");
+            Files.writeString(impl, "class Foo {}");
+            Files.writeString(testFile, "class FooTest {}");
+            SwingUtilities.invokeAndWait(() -> {
+                MainFrame frame = new MainFrame();
+                try {
+                    frame.applyProjectDirectory(root);
+                    EditorTabPane pane = frame.editorTabs();
+                    pane.openFile(impl);
+                    frame.updateNavigateMenu();
+                    JMenu navigate = findMenu(frame.getJMenuBar(), "Navigate");
+                    assertTrue("to test enabled on class", findMenuItem(navigate, "To Test").isEnabled());
+                    assertTrue("to impl disabled on class",
+                            !findMenuItem(navigate, "To Implementation").isEnabled());
+                    findMenuItem(navigate, "To Test").doClick();
+                    assertEqual("opened test", normalize(testFile), pane.getActiveFilePath());
+                    assertTrue("to test disabled on test", !findMenuItem(navigate, "To Test").isEnabled());
+                    assertTrue("to impl enabled on test",
+                            findMenuItem(navigate, "To Implementation").isEnabled());
+                    findMenuItem(navigate, "To Implementation").doClick();
+                    assertEqual("opened impl", normalize(impl), pane.getActiveFilePath());
+                } finally {
+                    frame.dispose();
+                }
+            });
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    private static void testToTestDisabledWhenMissing() throws Exception {
+        Path root = Files.createTempDirectory("lide-nav-no-test");
+        try {
+            Path src = root.resolve("src");
+            Files.createDirectories(src);
+            Path impl = src.resolve("Lonely.java");
+            Files.writeString(impl, "class Lonely {}");
+            SwingUtilities.invokeAndWait(() -> {
+                MainFrame frame = new MainFrame();
+                try {
+                    frame.applyProjectDirectory(root);
+                    frame.editorTabs().openFile(impl);
+                    frame.updateNavigateMenu();
+                    JMenu navigate = findMenu(frame.getJMenuBar(), "Navigate");
+                    assertTrue("to test disabled when missing",
+                            !findMenuItem(navigate, "To Test").isEnabled());
+                    assertTrue("to impl disabled on source",
+                            !findMenuItem(navigate, "To Implementation").isEnabled());
+                } finally {
+                    frame.dispose();
+                }
+            });
+        } finally {
+            deleteRecursive(root);
         }
     }
 

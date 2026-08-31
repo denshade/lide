@@ -206,7 +206,7 @@ public final class CodeEditor extends JPanel {
     }
 
     public void openFile(Path path) throws Exception {
-        String content = Files.readString(path, StandardCharsets.UTF_8);
+        String content = TextFiles.decode(Files.readAllBytes(path));
         filePath = path;
         language = Language.fromPath(path);
         applyingHighlight = true;

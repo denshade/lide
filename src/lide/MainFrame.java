@@ -44,6 +44,8 @@ public final class MainFrame extends JFrame {
     private JMenu openRecentMenu;
     private JMenuItem backItem;
     private JMenuItem forwardItem;
+    private JMenuItem toTestItem;
+    private JMenuItem toImplementationItem;
     private final List<JMenuItem> ladleItems = new ArrayList<>();
     private final KeyEventDispatcher ladleHotkeyDispatcher =
             e -> LadleHotkeys.dispatch(e, this, this::runLadle);
@@ -236,6 +238,28 @@ public final class MainFrame extends JFrame {
 
         navigate.add(backItem);
         navigate.add(forwardItem);
+        navigate.addSeparator();
+
+        toTestItem = new JMenuItem("To Test");
+        toTestItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T,
+                InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK));
+        toTestItem.addActionListener(e -> {
+            editors.navigateToTest();
+            updateStatus();
+            updateNavigateMenu();
+        });
+
+        toImplementationItem = new JMenuItem("To Implementation");
+        toImplementationItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I,
+                InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK));
+        toImplementationItem.addActionListener(e -> {
+            editors.navigateToImplementation();
+            updateStatus();
+            updateNavigateMenu();
+        });
+
+        navigate.add(toTestItem);
+        navigate.add(toImplementationItem);
         updateNavigateMenu();
 
         navigate.addMenuListener(new MenuListener() {
@@ -261,13 +285,20 @@ public final class MainFrame extends JFrame {
         }
         backItem.setEnabled(editors.canNavigateBack());
         forwardItem.setEnabled(editors.canNavigateForward());
+        if (toTestItem != null) {
+            toTestItem.setEnabled(editors.canNavigateToTest());
+        }
+        if (toImplementationItem != null) {
+            toImplementationItem.setEnabled(editors.canNavigateToImplementation());
+        }
     }
 
     void handleNavigationHotkey(NavigationHotkeys.Action action) {
-        if (action == NavigationHotkeys.Action.FORWARD) {
-            editors.navigateForward();
-        } else {
-            editors.navigateBack();
+        switch (action) {
+            case FORWARD -> editors.navigateForward();
+            case TO_TEST -> editors.navigateToTest();
+            case TO_IMPLEMENTATION -> editors.navigateToImplementation();
+            default -> editors.navigateBack();
         }
         updateStatus();
         updateNavigateMenu();

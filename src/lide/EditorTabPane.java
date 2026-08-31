@@ -148,7 +148,8 @@ public final class EditorTabPane extends JPanel {
             return;
         }
 
-        if (BinaryDetector.isBinary(bytes)) {
+        if (!TextFiles.isKnownText(normalized)
+                && (TextFiles.isKnownBinary(normalized) || BinaryDetector.isBinary(bytes))) {
             openBinaryViewer(normalized, bytes);
             return;
         }
@@ -250,6 +251,31 @@ public final class EditorTabPane extends JPanel {
         }
         navigationListener.run();
         return false;
+    }
+
+    public boolean canNavigateToTest() {
+        return TestNavigator.findTest(projectRootSupplier.get(), getActiveFilePath()).isPresent();
+    }
+
+    public boolean canNavigateToImplementation() {
+        return TestNavigator.findImplementation(projectRootSupplier.get(), getActiveFilePath()).isPresent();
+    }
+
+    public boolean navigateToTest() {
+        return openCounterpart(TestNavigator.findTest(projectRootSupplier.get(), getActiveFilePath()));
+    }
+
+    public boolean navigateToImplementation() {
+        return openCounterpart(
+                TestNavigator.findImplementation(projectRootSupplier.get(), getActiveFilePath()));
+    }
+
+    private boolean openCounterpart(java.util.Optional<Path> path) {
+        if (path.isEmpty()) {
+            return false;
+        }
+        openFile(path.get());
+        return true;
     }
 
     public Path getActiveFilePath() {

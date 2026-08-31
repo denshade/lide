@@ -32,6 +32,7 @@ public final class ContextMenuTest {
             testProjectTreeNewFileHandler();
             testProjectTreeRenameAndCopyPathHandlers();
             testProjectRootOmitsRename();
+            testProjectTreeLabelHasNoMenu();
             testClickInactiveTabSelectsIt();
             testTabCloseUsesXIcon();
         });
@@ -80,7 +81,7 @@ public final class ContextMenuTest {
         Path file = Path.of("src", "Demo.java");
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
-        JPopupMenu menu = tree.createContextMenu(node);
+        JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
         assertEqual("file menu items", List.of("Open", "Rename…", "Copy Path"), menuItemTexts(menu));
         findItem(menu, "Open").doClick();
         assertEqual("open handler path", file, opened.get());
@@ -90,7 +91,7 @@ public final class ContextMenuTest {
         ProjectTreePanel tree = new ProjectTreePanel();
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(
                 new ProjectTreePanel.FileNode(Path.of("src"), true));
-        JPopupMenu menu = tree.createContextMenu(node);
+        JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
         assertEqual("dir menu items",
                 List.of("New File…", "Rename…", "Copy Path", "Refresh"),
                 menuItemTexts(menu));
@@ -104,7 +105,7 @@ public final class ContextMenuTest {
         Path dir = Path.of("src");
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(dir, true));
-        JPopupMenu menu = tree.createContextMenu(node);
+        JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
         findItem(menu, "New File…").doClick();
         assertEqual("new file handler path", dir, createdIn.get());
     }
@@ -119,7 +120,7 @@ public final class ContextMenuTest {
         Path file = Path.of("src", "Demo.java");
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
-        JPopupMenu menu = tree.createContextMenu(node);
+        JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
         findItem(menu, "Rename…").doClick();
         findItem(menu, "Copy Path").doClick();
         assertEqual("rename handler path", file, renamed.get());
@@ -132,11 +133,17 @@ public final class ContextMenuTest {
         tree.openDirectory(root);
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(root, true));
-        JPopupMenu menu = tree.createContextMenu(node);
+        JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
         assertEqual("root menu items",
                 List.of("New File…", "Copy Path", "Refresh"),
                 menuItemTexts(menu));
         assertTrue("no rename on project root", findItem(menu, "Rename…") == null);
+    }
+
+    private static void testProjectTreeLabelHasNoMenu() {
+        ProjectTreePanel tree = new ProjectTreePanel();
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode("Loading…");
+        assertTrue("label node has no menu", tree.createContextMenu(node).isEmpty());
     }
 
     private static void testClickInactiveTabSelectsIt() {

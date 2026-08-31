@@ -111,7 +111,9 @@ public enum Language {
             case "go" -> GO;
             case "py" -> PYTHON;
             case "xml", "html", "htm", "xhtml", "svg", "fxml" -> XML;
-            case "json", "md", "txt", "css", "properties", "gradle", "kts" -> PLAIN;
+            case "json", "jsonc", "md", "markdown", "txt", "text", "csv", "tsv",
+                    "css", "scss", "sass", "less", "properties", "gradle", "kts",
+                    "yml", "yaml", "toml", "ini", "cfg", "conf", "log", "env", "sql" -> PLAIN;
             default -> PLAIN;
         };
     }

@@ -34,6 +34,12 @@ public final class NavigationHotkeysTest {
                 NavigationHotkeys.actionFor(KeyEvent.VK_LEFT, KeyEvent.ALT_DOWN_MASK));
         assertEqual("alt right", NavigationHotkeys.Action.FORWARD,
                 NavigationHotkeys.actionFor(KeyEvent.VK_RIGHT, KeyEvent.ALT_DOWN_MASK));
+        assertEqual("ctrl shift T", NavigationHotkeys.Action.TO_TEST,
+                NavigationHotkeys.actionFor(KeyEvent.VK_T,
+                        KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK));
+        assertEqual("ctrl shift I", NavigationHotkeys.Action.TO_IMPLEMENTATION,
+                NavigationHotkeys.actionFor(KeyEvent.VK_I,
+                        KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK));
     }
 
     private static void testIgnoresWrongModifiers() {
@@ -41,9 +47,11 @@ public final class NavigationHotkeysTest {
         assertEqual("ctrl alt left", null,
                 NavigationHotkeys.actionFor(KeyEvent.VK_LEFT,
                         KeyEvent.CTRL_DOWN_MASK | KeyEvent.ALT_DOWN_MASK));
-        assertEqual("shift alt right", null,
-                NavigationHotkeys.actionFor(KeyEvent.VK_RIGHT,
-                        KeyEvent.SHIFT_DOWN_MASK | KeyEvent.ALT_DOWN_MASK));
+        assertEqual("ctrl shift T", null,
+                NavigationHotkeys.actionFor(KeyEvent.VK_LEFT,
+                        KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK));
+        assertEqual("ctrl T", null,
+                NavigationHotkeys.actionFor(KeyEvent.VK_T, KeyEvent.CTRL_DOWN_MASK));
     }
 
     private static void testIgnoresUnknownKeys() {

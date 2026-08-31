@@ -33,6 +33,10 @@ public final class SyntaxHighlighterTest {
         assertEqual(".jsx", Language.JAVASCRIPT, Language.fromPath(Path.of("App.jsx")));
         assertEqual(".mjs", Language.JAVASCRIPT, Language.fromPath(Path.of("mod.mjs")));
         assertEqual(".tsx", Language.JAVASCRIPT, Language.fromPath(Path.of("App.tsx")));
+        assertEqual(".md", Language.PLAIN, Language.fromPath(Path.of("README.md")));
+        assertEqual(".txt", Language.PLAIN, Language.fromPath(Path.of("notes.txt")));
+        assertEqual(".csv", Language.PLAIN, Language.fromPath(Path.of("data.csv")));
+        assertEqual(".yml", Language.PLAIN, Language.fromPath(Path.of("config.yml")));
     }
 
     private static void testGoKeywordsAndTypes() throws Exception {

@@ -9,8 +9,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -20,12 +18,6 @@ public final class ProjectFinder {
     public static final int DEFAULT_MAX_MATCHES = 500;
     public static final int DEFAULT_MAX_FILES = 5000;
     public static final long MAX_FILE_BYTES = 2L * 1024 * 1024;
-
-    private static final Set<String> SKIP_EXTENSIONS = Set.of(
-            "class", "jar", "war", "zip", "7z", "gz", "tar", "rar",
-            "png", "jpg", "jpeg", "gif", "ico", "bmp", "webp", "psd",
-            "exe", "dll", "so", "dylib", "bin", "o", "obj", "pdb",
-            "pdf", "woff", "woff2", "ttf", "eot", "mp3", "mp4");
 
     private ProjectFinder() {
     }
@@ -153,11 +145,6 @@ public final class ProjectFinder {
         if (name == null) {
             return true;
         }
-        String fileName = name.toString().toLowerCase(Locale.ROOT);
-        int dot = fileName.lastIndexOf('.');
-        if (dot < 0 || dot == fileName.length() - 1) {
-            return false;
-        }
-        return SKIP_EXTENSIONS.contains(fileName.substring(dot + 1));
+        return TextFiles.isKnownBinary(file);
     }
 }

@@ -23,6 +23,9 @@ public final class BinaryViewerTest {
         if (!GraphicsEnvironment.isHeadless()) {
             SwingUtilities.invokeAndWait(BinaryViewerTest::testOpensBinaryTab);
             SwingUtilities.invokeAndWait(BinaryViewerTest::testOpensTextTab);
+            SwingUtilities.invokeAndWait(BinaryViewerTest::testOpensKnownTextDespiteLatin1);
+            SwingUtilities.invokeAndWait(BinaryViewerTest::testOpensUtf16TextFile);
+            SwingUtilities.invokeAndWait(BinaryViewerTest::testKnownBinaryOpensAsHex);
         }
         System.out.println("Passed: " + passed + ", Failed: " + failed);
         if (failed > 0) {
@@ -112,6 +115,67 @@ public final class BinaryViewerTest {
         } catch (Exception ex) {
             failed++;
             System.err.println("FAIL opens text tab: " + ex);
+        }
+    }
+
+    private static void testOpensKnownTextDespiteLatin1() {
+        try {
+            Path file = Files.createTempFile("lide-csv-", ".csv");
+            try {
+                Files.write(file, new byte[] {'a', ',', (byte) 0xE9, '\n'});
+                EditorTabPane pane = new EditorTabPane();
+                pane.openFile(file);
+                assertTrue("csv opens as text", pane.getActiveEditor() != null);
+                assertTrue("csv not hex", pane.getActiveBinaryViewer() == null);
+                String text = normalize(pane.getActiveEditor().getText());
+                assertEqual("latin1 csv", "a,\u00E9", text.strip());
+            } finally {
+                Files.deleteIfExists(file);
+            }
+        } catch (Exception ex) {
+            failed++;
+            System.err.println("FAIL opens latin1 csv: " + ex);
+        }
+    }
+
+    private static void testOpensUtf16TextFile() {
+        try {
+            Path file = Files.createTempFile("lide-md-", ".md");
+            try {
+                Files.write(file, new byte[] {
+                        (byte) 0xFF, (byte) 0xFE,
+                        '#', 0, ' ', 0, 'H', 0, 'i', 0
+                });
+                EditorTabPane pane = new EditorTabPane();
+                pane.openFile(file);
+                assertTrue("md opens as text", pane.getActiveEditor() != null);
+                assertTrue("md not hex", pane.getActiveBinaryViewer() == null);
+                assertEqual("utf16 md", "# Hi",
+                        normalize(pane.getActiveEditor().getText()));
+            } finally {
+                Files.deleteIfExists(file);
+            }
+        } catch (Exception ex) {
+            failed++;
+            System.err.println("FAIL opens utf16 md: " + ex);
+        }
+    }
+
+    private static void testKnownBinaryOpensAsHex() {
+        try {
+            Path file = Files.createTempFile("lide-png-", ".png");
+            try {
+                Files.write(file, "not really a png".getBytes(StandardCharsets.US_ASCII));
+                EditorTabPane pane = new EditorTabPane();
+                pane.openFile(file);
+                assertTrue("png opens as binary", pane.getActiveBinaryViewer() != null);
+                assertTrue("png not text editor", pane.getActiveEditor() == null);
+            } finally {
+                Files.deleteIfExists(file);
+            }
+        } catch (Exception ex) {
+            failed++;
+            System.err.println("FAIL opens png as hex: " + ex);
         }
     }
 

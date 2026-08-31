@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.swing.JMenuItem;
@@ -124,17 +125,14 @@ public final class ProjectTreePanel extends JPanel {
         }
         tree.setSelectionPath(path);
         DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
-        JPopupMenu menu = createContextMenu(node);
-        if (menu.getComponentCount() > 0) {
-            menu.show(tree, e.getX(), e.getY());
-        }
+        createContextMenu(node).ifPresent(menu -> menu.show(tree, e.getX(), e.getY()));
     }
 
-    JPopupMenu createContextMenu(DefaultMutableTreeNode node) {
-        JPopupMenu menu = new JPopupMenu();
+    Optional<JPopupMenu> createContextMenu(DefaultMutableTreeNode node) {
         if (!(node.getUserObject() instanceof FileNode fileNode)) {
-            return menu;
+            return Optional.empty();
         }
+        JPopupMenu menu = new JPopupMenu();
         if (!fileNode.directory()) {
             JMenuItem open = new JMenuItem("Open");
             open.addActionListener(e -> openFileHandler.accept(fileNode.path()));
@@ -157,7 +155,7 @@ public final class ProjectTreePanel extends JPanel {
             refresh.addActionListener(e -> refreshNode(node));
             menu.add(refresh);
         }
-        return menu;
+        return Optional.of(menu);
     }
 
     private void refreshNode(DefaultMutableTreeNode node) {

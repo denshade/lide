@@ -161,7 +161,14 @@ public final class ClassNavigator {
     }
 
     static List<Path> findSourceFiles(Path projectRoot, String className, Language language) {
-        String fileName = className + extensionFor(language);
+        return findFilesNamed(projectRoot, className + extensionFor(language));
+    }
+
+    static List<Path> findFilesNamed(Path projectRoot, String fileName) {
+        if (projectRoot == null || !Files.isDirectory(projectRoot)
+                || fileName == null || fileName.isEmpty()) {
+            return List.of();
+        }
         List<Path> found = new ArrayList<>();
         try {
             Files.walkFileTree(projectRoot, new SimpleFileVisitor<>() {

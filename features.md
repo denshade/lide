@@ -24,11 +24,12 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 
 - The **Navigate** menu offers **Back** (Alt+Left) and **Forward** (Alt+Right) to move through recently visited files in this session.
 - Opening a file or switching to another open tab records it in the history. **Back** returns to the previous file (reopening the tab if it was closed). **Forward** undoes Back. Opening or switching to a different file after going back clears the forward list.
+- **Navigate → To Test** (Ctrl+Shift+T) opens `ClassNameTest` for the current `ClassName` file (same extension, searched in the project). **Navigate → To Implementation** (Ctrl+Shift+I) does the reverse from `ClassNameTest`. Each item is disabled when the counterpart file is not found.
 
 ## Editing
 
-- The editor shows line numbers and applies deferred syntax highlighting for supported languages (Java, JavaScript/JSX, TypeScript, Go, Python, XML/HTML, and plain text).
-- Binary files (NUL bytes, non-text content, or undecodable UTF-8) open in a read-only hex dump viewer instead of the text editor, with offset, hex, and ASCII columns.
+- The editor shows line numbers and applies deferred syntax highlighting for supported languages (Java, JavaScript/JSX, TypeScript, Go, Python, XML/HTML, and plain text). Common text formats such as `.md`, `.txt`, `.csv`, `.json`, `.yml`, `.ini`, and similar always open in the text editor (UTF-8, UTF-16 with a BOM, or Windows-1252 when the file is not valid UTF-8).
+- Known binary types (images, archives, class files, and similar) and other files whose content looks binary (NUL bytes or a high ratio of control characters) open in a read-only hex dump viewer instead of the text editor, with offset, hex, and ASCII columns.
 - **Edit** menu supports **Undo** (Ctrl+Z), **Redo** (Ctrl+Y), **Copy** (Ctrl+C), and **Paste** (Ctrl+V) on the active tab.
 - **Find** (Ctrl+F) opens a find bar on the active file; typing updates the highlighted match in the editor without taking focus from the search box. **Find Next** (F3) / **Find Previous** (Shift+F3) move between matches, with optional match-case and wrap-around. Esc closes the bar.
 - **Find in Files** (Ctrl+Shift+F) searches the open project for text and lists matches in a dedicated bottom panel (file, line, and snippet). Click a result (or press Enter) to open that file and select the match. Match-case is optional. Build folders (`out`, `build`, `target`, and similar) and binary files are skipped. The panel starts minimized to a title bar and can be restored from the menu, the **+** button, or by clicking the title.

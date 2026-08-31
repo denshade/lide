@@ -13,21 +13,31 @@ import javax.swing.SwingUtilities;
 final class NavigationHotkeys {
     enum Action {
         BACK,
-        FORWARD
+        FORWARD,
+        TO_TEST,
+        TO_IMPLEMENTATION
     }
 
     private NavigationHotkeys() {
     }
 
     static Action actionFor(int keyCode, int modifiersEx) {
-        if (modifiersEx != KeyEvent.ALT_DOWN_MASK) {
-            return null;
+        if (modifiersEx == KeyEvent.ALT_DOWN_MASK) {
+            return switch (keyCode) {
+                case KeyEvent.VK_LEFT -> Action.BACK;
+                case KeyEvent.VK_RIGHT -> Action.FORWARD;
+                default -> null;
+            };
         }
-        return switch (keyCode) {
-            case KeyEvent.VK_LEFT -> Action.BACK;
-            case KeyEvent.VK_RIGHT -> Action.FORWARD;
-            default -> null;
-        };
+        int ctrlShift = KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK;
+        if (modifiersEx == ctrlShift) {
+            return switch (keyCode) {
+                case KeyEvent.VK_T -> Action.TO_TEST;
+                case KeyEvent.VK_I -> Action.TO_IMPLEMENTATION;
+                default -> null;
+            };
+        }
+        return null;
     }
 
     static boolean dispatch(KeyEvent event, Window window, Consumer<Action> run) {
