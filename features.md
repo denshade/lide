@@ -25,6 +25,7 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 
 - The **Navigate** menu offers **Back** (Alt+Left) and **Forward** (Alt+Right) to move through recently visited files in this session.
 - Opening a file or switching to another open tab records it in the history. **Back** returns to the previous file (reopening the tab if it was closed). **Forward** undoes Back. Opening or switching to a different file after going back clears the forward list.
+- **Navigate → Go to Class** (Shift twice) opens a search popup. Type a class name to filter Java, JavaScript/TypeScript, Go, and Python source files in the open project (build folders are skipped). Matches include prefix, substring, and camel-hump abbreviations such as `CN` for `ClassNavigator`. Enter or double-click opens the file at the class declaration. Esc cancels. The item is disabled when no project directory is open.
 - **Navigate → To Test** (Ctrl+Shift+T) opens `ClassNameTest` for the current `ClassName` file (same extension, searched in the project). **Navigate → To Implementation** (Ctrl+Shift+I) does the reverse from `ClassNameTest`. Each item is disabled when the counterpart file is not found.
 
 ## Editing

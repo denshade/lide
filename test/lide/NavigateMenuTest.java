@@ -47,11 +47,12 @@ public final class NavigateMenuTest {
             JMenu navigate = findMenu(frame.getJMenuBar(), "Navigate");
             assertTrue("Navigate menu exists", navigate != null);
             List<String> labels = itemLabels(navigate);
-            assertEqual("item count", 4, labels.size());
+            assertEqual("item count", 5, labels.size());
             assertEqual("back", "Back", labels.get(0));
             assertEqual("forward", "Forward", labels.get(1));
-            assertEqual("to test", "To Test", labels.get(2));
-            assertEqual("to implementation", "To Implementation", labels.get(3));
+            assertEqual("go to class", "Go to Class…", labels.get(2));
+            assertEqual("to test", "To Test", labels.get(3));
+            assertEqual("to implementation", "To Implementation", labels.get(4));
             assertEqual("back accelerator",
                     KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, InputEvent.ALT_DOWN_MASK),
                     findMenuItem(navigate, "Back").getAccelerator());
@@ -72,6 +73,8 @@ public final class NavigateMenuTest {
             assertTrue("to test disabled initially", !findMenuItem(navigate, "To Test").isEnabled());
             assertTrue("to implementation disabled initially",
                     !findMenuItem(navigate, "To Implementation").isEnabled());
+            assertTrue("go to class disabled without project",
+                    !findMenuItem(navigate, "Go to Class…").isEnabled());
         } finally {
             frame.dispose();
         }

@@ -46,11 +46,16 @@ public final class MainFrame extends JFrame {
     private JMenuItem forwardItem;
     private JMenuItem toTestItem;
     private JMenuItem toImplementationItem;
+    private JMenuItem goToClassItem;
+    private boolean goToClassOpen;
     private final List<JMenuItem> ladleItems = new ArrayList<>();
     private final KeyEventDispatcher ladleHotkeyDispatcher =
             e -> LadleHotkeys.dispatch(e, this, this::runLadle);
     private final KeyEventDispatcher navigationHotkeyDispatcher =
             e -> NavigationHotkeys.dispatch(e, this, this::handleNavigationHotkey);
+    private final DoubleShiftHotkeys doubleShiftHotkeys = new DoubleShiftHotkeys();
+    private final KeyEventDispatcher doubleShiftDispatcher =
+            e -> doubleShiftHotkeys.dispatch(e, this, this::showGoToClass);
 
     public MainFrame() {
         super("Lide");
@@ -117,6 +122,8 @@ public final class MainFrame extends JFrame {
                 .addKeyEventDispatcher(ladleHotkeyDispatcher);
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
                 .addKeyEventDispatcher(navigationHotkeyDispatcher);
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .addKeyEventDispatcher(doubleShiftDispatcher);
     }
 
     @Override
@@ -125,6 +132,8 @@ public final class MainFrame extends JFrame {
                 .removeKeyEventDispatcher(ladleHotkeyDispatcher);
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
                 .removeKeyEventDispatcher(navigationHotkeyDispatcher);
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .removeKeyEventDispatcher(doubleShiftDispatcher);
         super.dispose();
     }
 
@@ -241,6 +250,10 @@ public final class MainFrame extends JFrame {
         navigate.add(forwardItem);
         navigate.addSeparator();
 
+        goToClassItem = new JMenuItem("Go to Class…");
+        goToClassItem.addActionListener(e -> showGoToClass());
+        navigate.add(goToClassItem);
+
         toTestItem = new JMenuItem("To Test");
         toTestItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T,
                 InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK));
@@ -292,6 +305,51 @@ public final class MainFrame extends JFrame {
         if (toImplementationItem != null) {
             toImplementationItem.setEnabled(editors.canNavigateToImplementation());
         }
+        if (goToClassItem != null) {
+            goToClassItem.setEnabled(projectTree.getProjectRoot() != null);
+        }
+    }
+
+    void showGoToClass() {
+        if (goToClassOpen) {
+            return;
+        }
+        Path root = projectTree.getProjectRoot();
+        if (root == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Open a project directory first.",
+                    "Go to Class",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        goToClassOpen = true;
+        try {
+            ClassSearch.Hit hit = GoToClassDialog.show(this, root);
+            if (hit == null) {
+                return;
+            }
+            openClassHit(hit);
+        } finally {
+            goToClassOpen = false;
+        }
+        updateStatus();
+        updateNavigateMenu();
+    }
+
+    void openClassHit(ClassSearch.Hit hit) {
+        if (hit == null || hit.path() == null) {
+            return;
+        }
+        int caret = -1;
+        try {
+            String text = Files.readString(hit.path()).replace("\r\n", "\n").replace('\r', '\n');
+            caret = ClassNavigator.findDeclarationOffset(
+                    text, hit.className(), Language.fromPath(hit.path()));
+        } catch (IOException ex) {
+            AppLog.exception("Could not read " + hit.path() + " for Go to Class", ex);
+        }
+        editors.openFile(hit.path(), caret);
     }
 
     void handleNavigationHotkey(NavigationHotkeys.Action action) {
@@ -782,6 +840,7 @@ public final class MainFrame extends JFrame {
         scriptsPanel.setProjectRoot(dir);
         findInFilesPanel.setProjectRoot(dir);
         updateLadleMenu();
+        updateNavigateMenu();
         setTitle("Lide — " + (dir.getFileName() != null ? dir.getFileName() : dir));
         statusLabel.setText("Opened project: " + dir);
     }
