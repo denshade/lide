@@ -90,8 +90,8 @@ public final class ProjectFinder {
                     return truncated[0] ? FileVisitResult.TERMINATE : FileVisitResult.CONTINUE;
                 }
             });
-        } catch (IOException ignored) {
-            // Return whatever was found.
+        } catch (IOException ex) {
+            AppLog.exception("Find in files walk failed under " + root, ex);
         }
         if (stop.getAsBoolean()) {
             truncated[0] = true;
@@ -111,6 +111,7 @@ public final class ProjectFinder {
         try {
             bytes = Files.readAllBytes(file);
         } catch (IOException ex) {
+            AppLog.exception("Could not read " + file + " during find in files", ex);
             return;
         }
         if (BinaryDetector.isBinary(bytes)) {

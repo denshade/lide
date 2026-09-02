@@ -253,7 +253,8 @@ public final class FindInFilesTest {
     private static void deleteRecursiveQuiet(Path root) {
         try {
             deleteRecursive(root);
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            AppLog.exception("Could not delete " + root, ex);
         }
     }
 

@@ -140,6 +140,7 @@ public final class EditorTabPane extends JPanel {
         try {
             bytes = java.nio.file.Files.readAllBytes(normalized);
         } catch (Exception ex) {
+            AppLog.exception("Could not open file " + normalized, ex);
             JOptionPane.showMessageDialog(
                     this,
                     "Could not open file:\n" + ex.getMessage(),
@@ -159,6 +160,7 @@ public final class EditorTabPane extends JPanel {
         try {
             editor.openFile(normalized);
         } catch (Exception ex) {
+            AppLog.exception("Could not open " + normalized + " as text", ex);
             // UTF-8 decode or other text load failure — fall back to binary view.
             if (looksLikeEncodingFailure(ex)) {
                 openBinaryViewer(normalized, bytes);
@@ -533,6 +535,7 @@ public final class EditorTabPane extends JPanel {
             editor.save();
             return true;
         } catch (Exception ex) {
+            AppLog.exception("Could not save " + editor.getFilePath(), ex);
             JOptionPane.showMessageDialog(
                     this,
                     "Could not save file:\n" + ex.getMessage(),
@@ -550,6 +553,7 @@ public final class EditorTabPane extends JPanel {
                     editor.save();
                 } catch (Exception ex) {
                     ok = false;
+                    AppLog.exception("Could not save " + editor.getFilePath(), ex);
                     JOptionPane.showMessageDialog(
                             this,
                             "Could not save " + editor.getFilePath() + ":\n" + ex.getMessage(),
@@ -767,6 +771,7 @@ public final class EditorTabPane extends JPanel {
                 try {
                     editor.save();
                 } catch (Exception ex) {
+                    AppLog.exception("Could not save " + editor.getFilePath() + " before closing", ex);
                     JOptionPane.showMessageDialog(
                             this,
                             "Could not save file:\n" + ex.getMessage(),

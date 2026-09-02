@@ -233,8 +233,8 @@ public final class CodeEditor extends JPanel {
             if (shape != null) {
                 textPane.scrollRectToVisible(shape.getBounds());
             }
-        } catch (BadLocationException ignored) {
-            // Caret is still set.
+        } catch (BadLocationException ex) {
+            AppLog.exception("Could not scroll caret into view", ex);
         }
     }
 
@@ -297,6 +297,7 @@ public final class CodeEditor extends JPanel {
             Document doc = textPane.getDocument();
             return doc.getText(0, doc.getLength());
         } catch (BadLocationException ex) {
+            AppLog.exception("Could not read editor document text", ex);
             return "";
         }
     }
@@ -330,8 +331,8 @@ public final class CodeEditor extends JPanel {
             if (shape != null) {
                 textPane.scrollRectToVisible(shape.getBounds());
             }
-        } catch (BadLocationException ignored) {
-            // Selection is still applied.
+        } catch (BadLocationException ex) {
+            AppLog.exception("Could not scroll selection into view", ex);
         }
     }
 
@@ -465,8 +466,8 @@ public final class CodeEditor extends JPanel {
                     int x = getWidth() - fm.stringWidth(label) - 8;
                     int y = r.y + fm.getAscent();
                     g.drawString(label, x, y);
-                } catch (BadLocationException ignored) {
-                    // Skip this line.
+                } catch (BadLocationException ex) {
+                    AppLog.exception("Could not paint line number " + (line + 1), ex);
                 }
             }
         }

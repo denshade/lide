@@ -260,6 +260,7 @@ public final class FindInFilesPanel extends JPanel {
                 try {
                     applyResult(get(), null);
                 } catch (Exception ex) {
+                    AppLog.exception("Find in files failed", ex);
                     applyResult(null, "Search failed: " + ex.getMessage());
                 }
             }

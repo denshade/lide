@@ -49,6 +49,8 @@ public final class ProjectTreePanel extends JPanel {
     private Consumer<Path> renameHandler = path -> {
     };
     private Consumer<Path> copyPathHandler = PathClipboard::copy;
+    private Consumer<Path> runTestHandler = path -> {
+    };
     private Path projectRoot;
     private int loadGeneration;
 
@@ -137,6 +139,11 @@ public final class ProjectTreePanel extends JPanel {
             JMenuItem open = new JMenuItem("Open");
             open.addActionListener(e -> openFileHandler.accept(fileNode.path()));
             menu.add(open);
+            if (TestNavigator.isTestJavaFile(fileNode.path())) {
+                JMenuItem runTest = new JMenuItem("Run Test");
+                runTest.addActionListener(e -> runTestHandler.accept(fileNode.path()));
+                menu.add(runTest);
+            }
         } else {
             JMenuItem newFile = new JMenuItem("New File…");
             newFile.addActionListener(e -> newFileHandler.accept(fileNode.path()));
@@ -179,6 +186,10 @@ public final class ProjectTreePanel extends JPanel {
 
     public void setCopyPathHandler(Consumer<Path> copyPathHandler) {
         this.copyPathHandler = copyPathHandler;
+    }
+
+    public void setRunTestHandler(Consumer<Path> runTestHandler) {
+        this.runTestHandler = runTestHandler;
     }
 
     boolean isProjectRoot(Path path) {
@@ -270,6 +281,7 @@ public final class ProjectTreePanel extends JPanel {
                     replaceChildren(rootNode, get());
                     tree.expandPath(new TreePath(rootNode.getPath()));
                 } catch (Exception ex) {
+                    AppLog.exception("Could not load project tree root " + root, ex);
                     replaceChildren(rootNode, List.of(
                             new DefaultMutableTreeNode(new LabelNode(
                                     "Failed to load: " + ex.getMessage()))));
@@ -305,6 +317,7 @@ public final class ProjectTreePanel extends JPanel {
                     replaceChildren(node, get());
                     tree.expandPath(new TreePath(node.getPath()));
                 } catch (Exception ex) {
+                    AppLog.exception("Could not load project tree folder " + dir, ex);
                     replaceChildren(node, List.of(
                             new DefaultMutableTreeNode(new LabelNode(
                                     "Failed to load: " + ex.getMessage()))));
@@ -353,11 +366,12 @@ public final class ProjectTreePanel extends JPanel {
                         continue;
                     }
                     entries.add(new Entry(child, attrs.isDirectory()));
-                } catch (IOException ignored) {
-                    // Unreadable entry — skip.
+                } catch (IOException ex) {
+                    AppLog.exception("Could not read attributes for " + child, ex);
                 }
             }
         } catch (IOException ex) {
+            AppLog.exception("Could not list folder " + dir, ex);
             return List.of(new DefaultMutableTreeNode(
                     new LabelNode("Cannot read folder")));
         }

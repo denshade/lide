@@ -28,6 +28,7 @@ public final class ContextMenuTest {
             testCloseOthers();
             testCloseAll();
             testProjectTreeFileMenu();
+            testProjectTreeTestFileMenu();
             testProjectTreeDirectoryMenu();
             testProjectTreeNewFileHandler();
             testProjectTreeRenameAndCopyPathHandlers();
@@ -85,6 +86,22 @@ public final class ContextMenuTest {
         assertEqual("file menu items", List.of("Open", "Rename…", "Copy Path"), menuItemTexts(menu));
         findItem(menu, "Open").doClick();
         assertEqual("open handler path", file, opened.get());
+    }
+
+    private static void testProjectTreeTestFileMenu() {
+        ProjectTreePanel tree = new ProjectTreePanel();
+        AtomicReference<Path> ran = new AtomicReference<>();
+        tree.setRunTestHandler(ran::set);
+
+        Path file = Path.of("test", "DemoTest.java");
+        DefaultMutableTreeNode node =
+                new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
+        JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
+        assertEqual("test file menu items",
+                List.of("Open", "Run Test", "Rename…", "Copy Path"),
+                menuItemTexts(menu));
+        findItem(menu, "Run Test").doClick();
+        assertEqual("run test handler path", file, ran.get());
     }
 
     private static void testProjectTreeDirectoryMenu() {

@@ -231,7 +231,8 @@ public final class ScriptsPanel extends JPanel {
                 ProcessSupport.lowerPriority(process);
                 try {
                     process.getOutputStream().close();
-                } catch (IOException ignored) {
+                } catch (IOException ex) {
+                    AppLog.exception("Could not close process stdin", ex);
                 }
                 if (isCancelled() || userStopped) {
                     ProcessSupport.destroyTree(process);
@@ -248,6 +249,7 @@ public final class ScriptsPanel extends JPanel {
                         enqueueOutput(new String(buf, 0, n));
                     }
                 } catch (IOException ex) {
+                    AppLog.exception("Could not read process output", ex);
                     if (!userStopped && !isCancelled()) {
                         enqueueOutput("\n[read error: " + ex.getMessage() + "]\n");
                     }
@@ -273,8 +275,10 @@ public final class ScriptsPanel extends JPanel {
                     int code = get();
                     appendOutput("\n[exit code " + code + "]\n");
                 } catch (CancellationException ex) {
+                    AppLog.exception("Script run cancelled", ex);
                     appendOutput("\n[stopped]\n");
                 } catch (Exception ex) {
+                    AppLog.exception("Script run failed", ex);
                     appendOutput("\n[failed: " + ex.getMessage() + "]\n");
                 }
             }
@@ -328,6 +332,7 @@ public final class ScriptsPanel extends JPanel {
                     pendingLock.wait(OUTPUT_FLUSH_MS);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
+                    AppLog.exception("Interrupted while buffering script output", ex);
                     return;
                 }
             }
@@ -363,7 +368,8 @@ public final class ScriptsPanel extends JPanel {
         if (extra > 0) {
             try {
                 doc.remove(0, extra);
-            } catch (BadLocationException ignored) {
+            } catch (BadLocationException ex) {
+                AppLog.exception("Could not trim script console", ex);
             }
         }
         output.setCaretPosition(doc.getLength());

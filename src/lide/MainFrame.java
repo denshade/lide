@@ -63,6 +63,7 @@ public final class MainFrame extends JFrame {
         projectTree.setOpenFileHandler(editors::openFile);
         projectTree.setNewFileHandler(this::promptNewFile);
         projectTree.setRenameHandler(this::promptRename);
+        projectTree.setRunTestHandler(this::runSingleTest);
         editors.setStatusUpdater(this::updateStatus);
         editors.setNavigationListener(this::updateNavigateMenu);
         editors.setProjectRootSupplier(projectTree::getProjectRoot);
@@ -368,6 +369,17 @@ public final class MainFrame extends JFrame {
     }
 
     void runLadle(String command) {
+        runLadle(command, new String[0]);
+    }
+
+    void runSingleTest(Path testFile) {
+        if (testFile == null) {
+            return;
+        }
+        runLadle(LadleCommand.TEST, testFile.toAbsolutePath().normalize().toString());
+    }
+
+    void runLadle(String command, String... extraArgs) {
         Path root = projectTree.getProjectRoot();
         if (root == null) {
             JOptionPane.showMessageDialog(
@@ -390,7 +402,17 @@ public final class MainFrame extends JFrame {
             return;
         }
         editors.saveAll();
-        scriptsPanel.runProcess(LadleCommand.processBuilder(root, command));
+        try {
+            scriptsPanel.runProcess(LadleCommand.processBuilder(root, command, extraArgs));
+        } catch (IllegalStateException ex) {
+            AppLog.exception("Could not run Ladle " + command, ex);
+            JOptionPane.showMessageDialog(
+                    this,
+                    ex.getMessage(),
+                    "Ladle",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         updateLadleMenu();
     }
 
@@ -431,6 +453,7 @@ public final class MainFrame extends JFrame {
                     JOptionPane.INFORMATION_MESSAGE);
             statusLabel.setText("Installed Ladle in " + root);
         } catch (IOException | IllegalArgumentException ex) {
+            AppLog.exception("Could not install Ladle", ex);
             JOptionPane.showMessageDialog(
                     this,
                     "Could not install Ladle:\n" + ex.getMessage(),
@@ -635,6 +658,7 @@ public final class MainFrame extends JFrame {
             updateStatus();
             return created;
         } catch (java.nio.file.FileAlreadyExistsException ex) {
+            AppLog.exception("New file already exists", ex);
             JOptionPane.showMessageDialog(
                     this,
                     "A file with that name already exists.",
@@ -642,6 +666,7 @@ public final class MainFrame extends JFrame {
                     JOptionPane.WARNING_MESSAGE);
             return null;
         } catch (IllegalArgumentException | IOException ex) {
+            AppLog.exception("Could not create file", ex);
             JOptionPane.showMessageDialog(
                     this,
                     "Could not create file:\n" + ex.getMessage(),
@@ -694,6 +719,7 @@ public final class MainFrame extends JFrame {
             updateStatus();
             return renamed;
         } catch (java.nio.file.FileAlreadyExistsException ex) {
+            AppLog.exception("Rename target already exists", ex);
             JOptionPane.showMessageDialog(
                     this,
                     "A file or folder with that name already exists.",
@@ -701,6 +727,7 @@ public final class MainFrame extends JFrame {
                     JOptionPane.WARNING_MESSAGE);
             return null;
         } catch (IllegalArgumentException | IOException ex) {
+            AppLog.exception("Could not rename", ex);
             JOptionPane.showMessageDialog(
                     this,
                     "Could not rename:\n" + ex.getMessage(),

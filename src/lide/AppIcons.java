@@ -78,6 +78,7 @@ public final class AppIcons {
             BufferedImage image = ImageIO.read(in);
             return image;
         } catch (IOException ex) {
+            AppLog.exception("Could not load icon " + resourcePath, ex);
             return null;
         }
     }

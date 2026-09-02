@@ -46,7 +46,8 @@ public final class MenuSpacingTest {
     private static void testMenuItemUsesBasicUiAndTightLeft() {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            AppLog.exception("Could not set system look and feel for menu test", ex);
         }
         IdeTheme.apply();
 

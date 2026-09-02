@@ -16,6 +16,7 @@ public final class TestNavigatorTest {
         testImplementationFileNameMapping();
         testAlreadyTestHasNoTestCounterpart();
         testStemNamedTestIsNotAPair();
+        testIsTestJavaFile();
         testFindsTestInSrcTestLayout();
         testFindsImplementationInSrcTestLayout();
         testMissingCounterpartIsEmpty();
@@ -55,6 +56,17 @@ public final class TestNavigatorTest {
         assertTrue("Test.java is not a test pair", !TestNavigator.isTestStem("Test"));
         assertEqual("Test.java implementation", null, TestNavigator.implementationFileName("Test.java"));
         assertEqual("Test.java test", "TestTest.java", TestNavigator.testFileName("Test.java"));
+    }
+
+    private static void testIsTestJavaFile() {
+        assertTrue("FooTest.java", TestNavigator.isTestJavaFile(Path.of("test", "FooTest.java")));
+        assertTrue("Test.java", TestNavigator.isTestJavaFile(Path.of("Test.java")));
+        assertTrue("Foo is not a test file", !TestNavigator.isTestJavaFile(Path.of("src", "Foo.java")));
+        assertTrue("Latest.java is not a test file",
+                !TestNavigator.isTestJavaFile(Path.of("Latest.java")));
+        assertTrue("FooTests.java is not *Test.java",
+                !TestNavigator.isTestJavaFile(Path.of("FooTests.java")));
+        assertTrue("null path", !TestNavigator.isTestJavaFile(null));
     }
 
     private static void testFindsTestInSrcTestLayout() throws Exception {

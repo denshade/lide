@@ -1,0 +1,23 @@
+---
+description: Never swallow exceptions; at least record them
+alwaysApply: true
+---
+
+# Never Swallow Exceptions
+
+Do not catch an exception and discard it. Empty `catch` blocks and `catch (… ignored)` with no record of the failure hide bugs.
+
+If the code cannot recover or rethrow, at least write the exception somewhere durable: a log file, `System.err`, or `printStackTrace()`. Prefer a log file under the app's data directory when one exists.
+
+```java
+// BAD — silent
+} catch (IOException ignored) {
+}
+
+// GOOD — recorded
+} catch (IOException ex) {
+    ex.printStackTrace();
+}
+```
+
+Catching in tests to assert that a specific exception is thrown is allowed. InterruptedException must still restore the interrupt flag.

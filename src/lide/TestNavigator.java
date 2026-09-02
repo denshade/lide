@@ -47,6 +47,14 @@ public final class TestNavigator {
         return stem != null && stem.length() > TEST_SUFFIX.length() && stem.endsWith(TEST_SUFFIX);
     }
 
+    /**
+     * True when {@code path} is a Java unit-test source file ({@code *Test.java}).
+     */
+    public static boolean isTestJavaFile(Path path) {
+        String name = fileName(path);
+        return name != null && name.endsWith("Test.java");
+    }
+
     private static Optional<Path> findNamed(Path projectRoot, Path currentFile, String fileName) {
         if (projectRoot == null || !Files.isDirectory(projectRoot) || currentFile == null
                 || fileName == null) {

@@ -85,7 +85,8 @@ public final class ProjectHistory {
                     break;
                 }
             }
-        } catch (IOException ignored) {
+        } catch (IOException ex) {
+            AppLog.exception("Could not load project history from " + storageFile, ex);
             entries.clear();
         }
     }
@@ -101,8 +102,8 @@ public final class ProjectHistory {
                 lines.add(entry.toString());
             }
             Files.write(storageFile, lines, StandardCharsets.UTF_8);
-        } catch (IOException ignored) {
-            // History is best-effort.
+        } catch (IOException ex) {
+            AppLog.exception("Could not save project history to " + storageFile, ex);
         }
     }
 }

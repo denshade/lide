@@ -61,7 +61,8 @@ public final class IconTest {
                 walk.sorted((a, b) -> b.compareTo(a)).forEach(path -> {
                     try {
                         Files.deleteIfExists(path);
-                    } catch (Exception ignored) {
+                    } catch (Exception ex) {
+                        AppLog.exception("Could not delete " + path, ex);
                     }
                 });
             }

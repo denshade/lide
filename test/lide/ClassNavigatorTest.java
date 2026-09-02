@@ -249,8 +249,8 @@ public final class ClassNavigatorTest {
             if (created != null) {
                 try {
                     deleteRecursive(created);
-                } catch (Exception ignored) {
-                    // best-effort cleanup
+                } catch (Exception ex) {
+                    AppLog.exception("Could not delete temp project " + created, ex);
                 }
             }
         }

@@ -18,6 +18,9 @@ public final class LadleCommandTest {
         testAvailableWhenJarAndIniPresent();
         testCommandForBuild();
         testCommandForTest();
+        testCommandForTestWithClassFilter();
+        testSupportsTestFilters();
+        testJarForTestFilterFallsBackWhenProjectJarIsOld();
         testCommandForRequiresProject();
         testCommandForRejectsBlank();
         testDetectedJdkHomeHasJavacWhenPresent();
@@ -91,6 +94,75 @@ public final class LadleCommandTest {
         }
     }
 
+    private static void testCommandForTestWithClassFilter() throws Exception {
+        Path root = fakeLadleProject();
+        try {
+            Path projectJar = writeLadleClassJar(
+                    root.resolve("lib").resolve("ladle.jar"),
+                    "ladle test [<ini-file>] [<class>...]");
+            Path testFile = root.resolve("test").resolve("FooTest.java");
+            List<String> cmd = LadleCommand.commandFor(
+                    root, LadleCommand.TEST, testFile.toString());
+            assertEqual("uses project jar", projectJar.toString(), cmd.get(2));
+            assertEqual("command", "test", cmd.get(3));
+            assertEqual("ini", "build.ini", cmd.get(4));
+            assertEqual("filter", testFile.toString(), cmd.get(5));
+            assertEqual("size", 6, cmd.size());
+            List<String> skippedBlank = LadleCommand.commandFor(root, LadleCommand.TEST, "  ", null);
+            assertEqual("blank extras ignored", 5, skippedBlank.size());
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    private static void testSupportsTestFilters() throws Exception {
+        Path dir = Files.createTempDirectory("lide-filter-detect");
+        try {
+            Path neu = writeLadleClassJar(
+                    dir.resolve("new.jar"),
+                    "ladle test [<ini-file>] [<class>...]");
+            Path old = writeLadleClassJar(
+                    dir.resolve("old.jar"),
+                    "ladle test [<ini-file>]        Run unit tests");
+            assertTrue("new jar", LadleCommand.supportsTestFilters(neu));
+            assertTrue("old jar", !LadleCommand.supportsTestFilters(old));
+            assertTrue("missing", !LadleCommand.supportsTestFilters(dir.resolve("missing.jar")));
+            Path project = fakeLadleProject();
+            try {
+                assertTrue("text fake jar", !LadleCommand.supportsTestFilters(LadleCommand.jarPath(project)));
+            } finally {
+                deleteRecursive(project);
+            }
+        } finally {
+            deleteRecursive(dir);
+        }
+    }
+
+    private static void testJarForTestFilterFallsBackWhenProjectJarIsOld() throws Exception {
+        Path root = fakeLadleProject();
+        Path fallbackDir = Files.createTempDirectory("lide-filter-fallback");
+        try {
+            writeLadleClassJar(
+                    root.resolve("lib").resolve("ladle.jar"),
+                    "ladle test [<ini-file>]        Run unit tests");
+            assertTrue("old project has no filter",
+                    LadleCommand.jarForTestFilter(root, List.of()) == null);
+            Path fallback = writeLadleClassJar(
+                    fallbackDir.resolve("ladle.jar"),
+                    "ladle test [<ini-file>] [<class>...]");
+            Path used = LadleCommand.jarForTestFilter(root, List.of(fallback));
+            assertEqual("fallback jar", fallback.toAbsolutePath().normalize(), used);
+            List<String> cmd = LadleCommand.commandFor(
+                    root, LadleCommand.TEST, "FooTest");
+            assertTrue("run-test uses a capable jar",
+                    LadleCommand.supportsTestFilters(Path.of(cmd.get(2))));
+            assertEqual("keeps class filter", "FooTest", cmd.get(5));
+        } finally {
+            deleteRecursive(root);
+            deleteRecursive(fallbackDir);
+        }
+    }
+
     private static void testCommandForRequiresProject() {
         try {
             LadleCommand.commandFor(null, LadleCommand.BUILD);
@@ -144,6 +216,16 @@ public final class LadleCommandTest {
         } finally {
             deleteRecursive(root);
         }
+    }
+
+    private static Path writeLadleClassJar(Path jar, String classUtf) throws Exception {
+        Files.createDirectories(jar.getParent() == null ? Path.of(".") : jar.getParent());
+        try (java.util.zip.ZipOutputStream out = new java.util.zip.ZipOutputStream(Files.newOutputStream(jar))) {
+            out.putNextEntry(new java.util.zip.ZipEntry("thelaboflieven/info/Ladle.class"));
+            out.write(classUtf.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            out.closeEntry();
+        }
+        return jar.toAbsolutePath().normalize();
     }
 
     private static Path fakeLadleProject() throws Exception {

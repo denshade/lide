@@ -104,6 +104,7 @@ public final class TextFiles {
                     .decode(ByteBuffer.wrap(bytes));
             return true;
         } catch (CharacterCodingException ex) {
+            // Probe result: this byte sequence is not valid UTF-8.
             return false;
         }
     }

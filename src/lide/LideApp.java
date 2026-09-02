@@ -11,8 +11,8 @@ public final class LideApp {
         SwingUtilities.invokeLater(() -> {
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ignored) {
-                // Fall back to the default look and feel.
+            } catch (Exception ex) {
+                AppLog.exception("Could not set system look and feel", ex);
             }
             IdeTheme.apply();
             MainFrame frame = new MainFrame();

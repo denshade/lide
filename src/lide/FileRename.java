@@ -109,8 +109,9 @@ public final class FileRename {
         } catch (IOException ex) {
             try {
                 Files.move(temp, from);
-            } catch (IOException ignored) {
-                // Keep the original exception.
+            } catch (IOException rollback) {
+                AppLog.exception("Could not restore " + from + " after failed rename", rollback);
+                ex.addSuppressed(rollback);
             }
             throw ex;
         }

@@ -25,15 +25,15 @@ final class ProcessSupport {
                 child.destroyForcibly();
             }
             handle.destroyForcibly();
-        } catch (IllegalStateException ignored) {
-            // Process not started or already reaped.
+        } catch (IllegalStateException ex) {
+            AppLog.exception("Could not destroy process tree; process not started or already reaped", ex);
         }
         process.destroyForcibly();
     }
 
     /**
      * Best-effort: drop the child below the IDE's scheduling class so a heavy
-     * compile/test does not starve Swing. Failures are ignored.
+     * compile/test does not starve Swing. Failures are logged.
      */
     static void lowerPriority(Process process) {
         if (process == null || !process.isAlive()) {
@@ -55,7 +55,8 @@ final class ProcessSupport {
                     .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start();
-        } catch (IOException ignored) {
+        } catch (IOException ex) {
+            AppLog.exception("Could not lower process priority for pid " + pid, ex);
         }
     }
 }

@@ -9,6 +9,7 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 - **File → New File** (Ctrl+N) creates an empty file in the selected tree folder (or the project root if nothing is selected) and opens it in the editor. Nested names such as `src/Hello.java` create missing parent folders. A project directory must be open first.
 - Double-click a file to open it in the editor.
 - Right-click a file for a context menu with **Open**, **Rename**, and **Copy Path**.
+- Right-click a `*Test.java` file also offers **Run Test**, which compiles and runs that one test class through Ladle. Output streams into the scripts panel console (same as **Ladle → Test**). Unsaved editors are saved first. If the project's `lib/ladle.jar` is too old to accept a class filter, Lide uses a newer Ladle from its own `lib/` folder or a sibling Ladle distribution. On a project without Ladle, or when no capable jar is found, an explanation dialog is shown.
 - Right-click a folder for a context menu with **New File**, **Rename**, **Copy Path**, and **Refresh**. The open project folder itself cannot be renamed.
 - **Rename** asks for a new name in the same folder. Open editor tabs follow the renamed file, or files under a renamed folder.
 - **Copy Path** copies the absolute path to the clipboard. Editor tabs also offer **Copy Path** (disabled for untitled buffers).
@@ -47,7 +48,7 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 
 - The **Ladle** menu runs the project's Ladle build tool (a lightweight Java compiler/test/packager) when the open project contains `lib/ladle.jar` and `build.ini`.
 - **Install Ladle** copies `lib/ladle.jar` and `bin/` launchers from a nearby Ladle distribution (a sibling `ladle` folder, or a folder you pick) into the open project. A starter `build.ini` is written only when the project does not already have one; `[javac].path` is the JDK that is running Lide, or `.jdk` (downloaded by **Download Dependencies**) if no JDK is detected.
-- **Build** (F5) compiles sources; **Test** (F6) compiles and runs unit tests; **Release** packages a JAR; **Download Dependencies** (F4) fetches the JDK and JARs listed in the INI; **Clear** deletes the build directory. F4, F5, and F6 work from anywhere in the window (editor, project tree, or scripts panel), not only when the Ladle menu is open.
+- **Build** (F5) compiles sources; **Test** (F6) compiles and runs unit tests; **Release** packages a JAR; **Download Dependencies** (F4) fetches the JDK and JARs listed in the INI; **Clear** deletes the build directory. F4, F5, and F6 work from anywhere in the window (editor, project tree, or scripts panel), not only when the Ladle menu is open. Right-click **Run Test** on a `*Test.java` file runs only that class.
 - Commands run as `java -jar lib/ladle.jar <command> build.ini` with the project root as the working directory. If `JAVA_HOME` is unset, Lide supplies the detected JDK so `$JAVA_HOME` in `build.ini` still works. Output streams into the scripts panel console; Stop cancels the Ladle process and anything it spawned. Unsaved editors are saved first.
 - Menu items are enabled whenever a project directory is open (and no command is already running). Choosing an item on a project that is missing Ladle shows an explanation instead of leaving the menu greyed out.
 
@@ -57,5 +58,6 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 - Menus use a compact layout without the Windows checkmark gutter on the left.
 - Enabled buttons use a brighter label, lighter fill, and stronger border; disabled buttons use a faded label, darker fill, and a muted border so the two states are easy to tell apart. Menu text uses the normal editor foreground so it stays readable; disabled menu items use a dimmer gray.
 - Status bar shows the active file path, language, and modified state.
+- Recovered failures (I/O errors, look-and-feel setup, and similar) are appended to `~/.lide/lide.log`.
 - Application icons appear on the window and taskbar; run `create-launcher.bat` to generate `assets/lide.ico` and a `Lide.lnk` shortcut that launches the IDE with that icon.
 - **View → About Lide** opens an information dialog showing the application icon (64×64, taken from the same icon set used for the window) next to a short description of the IDE.

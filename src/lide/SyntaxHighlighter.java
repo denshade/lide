@@ -32,8 +32,8 @@ public final class SyntaxHighlighter {
                 return;
             }
             highlightCode(doc, text, language);
-        } catch (BadLocationException ignored) {
-            // Document may have changed under us; ignore.
+        } catch (BadLocationException ex) {
+            AppLog.exception("Syntax highlight skipped; document changed", ex);
         }
     }
 

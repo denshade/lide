@@ -75,8 +75,8 @@ public final class ScriptFinder {
                     return FileVisitResult.CONTINUE;
                 }
             });
-        } catch (IOException ignored) {
-            // Return whatever was found.
+        } catch (IOException ex) {
+            AppLog.exception("Script scan failed under " + root, ex);
         }
         found.sort(Comparator.comparing(p -> root.relativize(p).toString().toLowerCase(Locale.ROOT)));
         return found;

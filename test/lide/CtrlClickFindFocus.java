@@ -32,7 +32,7 @@ public class CtrlClickFindFocus {
         for (int i=0;i<30 && r==null;i++) {
           var shape = tp.modelToView2D(offset+2);
           if (shape!=null) r = shape.getBounds();
-          try { Thread.sleep(30);} catch(Exception e){}
+          try { Thread.sleep(30);} catch(Exception e){ Thread.currentThread().interrupt(); AppLog.exception("Interrupted waiting for view", e);}
         }
         Point p = new Point(r.x+2, r.y+r.height/2);
         System.out.println("before sel="+tp.getSelectedText());
@@ -42,8 +42,8 @@ public class CtrlClickFindFocus {
         System.out.println("after path="+pane.getActiveEditor().getFilePath());
         System.out.println("match="+iconGen.toAbsolutePath().normalize().equals(pane.getActiveEditor().getFilePath()));
         f.dispose();
-      } catch (Exception ex) { ex.printStackTrace(); }
+      } catch (Exception ex) { AppLog.exception("Ctrl-click find-focus probe failed", ex); }
     });
-    try (var w = Files.walk(root)) { w.sorted((a,b)->b.compareTo(a)).forEach(p->{try{Files.deleteIfExists(p);}catch(Exception e){}}); }
+    try (var w = Files.walk(root)) { w.sorted((a,b)->b.compareTo(a)).forEach(p->{try{Files.deleteIfExists(p);}catch(Exception e){AppLog.exception("Could not delete "+p,e);}}); }
   }
 }

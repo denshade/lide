@@ -93,7 +93,8 @@ public final class LadleInstaller {
             }
             Path path = Path.of(source.getLocation().toURI()).toAbsolutePath().normalize();
             return Files.isRegularFile(path) ? path.getParent() : path;
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            AppLog.exception("Could not resolve Lide code source directory", ex);
             return null;
         }
     }
@@ -207,7 +208,8 @@ public final class LadleInstaller {
             perms.add(PosixFilePermission.GROUP_EXECUTE);
             perms.add(PosixFilePermission.OTHERS_EXECUTE);
             Files.setPosixFilePermissions(file, perms);
-        } catch (UnsupportedOperationException | IOException ignored) {
+        } catch (UnsupportedOperationException | IOException ex) {
+            AppLog.exception("Could not set POSIX execute bit on " + file, ex);
             file.toFile().setExecutable(true, false);
         }
     }

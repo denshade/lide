@@ -190,8 +190,8 @@ public final class ClassNavigator {
                     return FileVisitResult.CONTINUE;
                 }
             });
-        } catch (IOException ignored) {
-            // Incomplete search is fine.
+        } catch (IOException ex) {
+            AppLog.exception("Class search failed under " + projectRoot, ex);
         }
         return found;
     }
@@ -252,6 +252,7 @@ public final class ClassNavigator {
             // Normalize to LF so declaration offsets match the editor document model.
             return Files.readString(path).replace("\r\n", "\n").replace('\r', '\n');
         } catch (IOException ex) {
+            AppLog.exception("Could not read " + path + " for class navigation", ex);
             return "";
         }
     }
