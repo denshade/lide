@@ -49,8 +49,9 @@ public final class MainFrame extends JFrame {
     private JMenuItem goToClassItem;
     private boolean goToClassOpen;
     private final List<JMenuItem> ladleItems = new ArrayList<>();
+    private final List<JMenuItem> gradleItems = new ArrayList<>();
     private final KeyEventDispatcher ladleHotkeyDispatcher =
-            e -> LadleHotkeys.dispatch(e, this, this::runLadle);
+            e -> LadleHotkeys.dispatch(e, this, this::runLadleOrGradle);
     private final KeyEventDispatcher navigationHotkeyDispatcher =
             e -> NavigationHotkeys.dispatch(e, this, this::handleNavigationHotkey);
     private final DoubleShiftHotkeys doubleShiftHotkeys = new DoubleShiftHotkeys();
@@ -211,6 +212,7 @@ public final class MainFrame extends JFrame {
         JMenu navigate = buildNavigateMenu();
 
         JMenu ladle = buildLadleMenu();
+        JMenu gradle = buildGradleMenu();
 
         JMenu view = new JMenu("View");
         view.setMnemonic(KeyEvent.VK_V);
@@ -222,6 +224,7 @@ public final class MainFrame extends JFrame {
         bar.add(edit);
         bar.add(navigate);
         bar.add(ladle);
+        bar.add(gradle);
         bar.add(view);
         return bar;
     }
@@ -399,7 +402,7 @@ public final class MainFrame extends JFrame {
         ladle.addMenuListener(new MenuListener() {
             @Override
             public void menuSelected(MenuEvent e) {
-                updateLadleMenu();
+                updateBuildToolMenus();
             }
 
             @Override
@@ -426,12 +429,92 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    private JMenu buildGradleMenu() {
+        JMenu gradle = new JMenu("Gradle");
+        gradle.setMnemonic(KeyEvent.VK_G);
+
+        JMenuItem build = gradleItem("Build", GradleCommand.BUILD);
+        JMenuItem test = gradleItem("Test", GradleCommand.TEST);
+        JMenuItem release = gradleItem("Release", GradleCommand.RELEASE);
+        JMenuItem dependencies = gradleItem("Download Dependencies", GradleCommand.DEPENDENCY);
+        JMenuItem clear = gradleItem("Clear", GradleCommand.CLEAR);
+
+        gradle.add(build);
+        gradle.add(test);
+        gradle.addSeparator();
+        gradle.add(release);
+        gradle.add(dependencies);
+        gradle.add(clear);
+
+        gradleItems.add(build);
+        gradleItems.add(test);
+        gradleItems.add(release);
+        gradleItems.add(dependencies);
+        gradleItems.add(clear);
+        updateGradleMenu();
+
+        gradle.addMenuListener(new MenuListener() {
+            @Override
+            public void menuSelected(MenuEvent e) {
+                updateBuildToolMenus();
+            }
+
+            @Override
+            public void menuDeselected(MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(MenuEvent e) {
+            }
+        });
+        return gradle;
+    }
+
+    private JMenuItem gradleItem(String label, String task) {
+        JMenuItem item = new JMenuItem(label);
+        item.addActionListener(e -> runGradle(task));
+        return item;
+    }
+
+    void updateGradleMenu() {
+        boolean enable = projectTree.getProjectRoot() != null && !scriptsPanel.isRunning();
+        for (JMenuItem item : gradleItems) {
+            item.setEnabled(enable);
+        }
+    }
+
+    void updateBuildToolMenus() {
+        updateLadleMenu();
+        updateGradleMenu();
+    }
+
     void runLadle(String command) {
         runLadle(command, new String[0]);
     }
 
+    /**
+     * F4/F5/F6: Ladle when the project has it, otherwise Gradle.
+     */
+    void runLadleOrGradle(String ladleCommand) {
+        Path root = projectTree.getProjectRoot();
+        if (GradleCommand.preferredOverLadle(root)) {
+            runGradle(GradleCommand.taskFor(ladleCommand));
+            return;
+        }
+        runLadle(ladleCommand);
+    }
+
     void runSingleTest(Path testFile) {
         if (testFile == null) {
+            return;
+        }
+        Path root = projectTree.getProjectRoot();
+        if (GradleCommand.preferredOverLadle(root)) {
+            String filter = GradleCommand.testClassFilter(testFile);
+            if (filter == null || filter.isBlank()) {
+                return;
+            }
+            runGradle(GradleCommand.TEST, GradleCommand.TESTS_FLAG, filter);
             return;
         }
         runLadle(LadleCommand.TEST, testFile.toAbsolutePath().normalize().toString());
@@ -471,7 +554,48 @@ public final class MainFrame extends JFrame {
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
-        updateLadleMenu();
+        updateBuildToolMenus();
+    }
+
+    void runGradle(String task) {
+        runGradle(task, new String[0]);
+    }
+
+    void runGradle(String task, String... extraArgs) {
+        Path root = projectTree.getProjectRoot();
+        if (root == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Open a project directory first.",
+                    "Gradle",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (!GradleCommand.isAvailable(root)) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "This project is not a Gradle project.\n"
+                            + "Add a build.gradle or settings.gradle file (Groovy or Kotlin DSL).",
+                    "Gradle",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (scriptsPanel.isRunning()) {
+            return;
+        }
+        editors.saveAll();
+        try {
+            scriptsPanel.runProcess(GradleCommand.processBuilder(root, task, extraArgs));
+        } catch (IllegalStateException ex) {
+            AppLog.exception("Could not run Gradle " + task, ex);
+            JOptionPane.showMessageDialog(
+                    this,
+                    ex.getMessage(),
+                    "Gradle",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        updateBuildToolMenus();
     }
 
     void installLadle() {
@@ -839,7 +963,7 @@ public final class MainFrame extends JFrame {
         projectTree.openDirectory(dir);
         scriptsPanel.setProjectRoot(dir);
         findInFilesPanel.setProjectRoot(dir);
-        updateLadleMenu();
+        updateBuildToolMenus();
         updateNavigateMenu();
         setTitle("Lide — " + (dir.getFileName() != null ? dir.getFileName() : dir));
         statusLabel.setText("Opened project: " + dir);
