@@ -50,6 +50,9 @@ public final class MainFrame extends JFrame {
     private boolean goToClassOpen;
     private final List<JMenuItem> ladleItems = new ArrayList<>();
     private final List<JMenuItem> gradleItems = new ArrayList<>();
+    private JMenuItem javaHomeCurrentItem;
+    private JMenuItem javaHomeSetItem;
+    private JMenuItem javaHomeClearItem;
     private final KeyEventDispatcher ladleHotkeyDispatcher =
             e -> LadleHotkeys.dispatch(e, this, this::runLadleOrGradle);
     private final KeyEventDispatcher navigationHotkeyDispatcher =
@@ -213,6 +216,7 @@ public final class MainFrame extends JFrame {
 
         JMenu ladle = buildLadleMenu();
         JMenu gradle = buildGradleMenu();
+        JMenu java = buildJavaHomeMenu();
 
         JMenu view = new JMenu("View");
         view.setMnemonic(KeyEvent.VK_V);
@@ -225,6 +229,7 @@ public final class MainFrame extends JFrame {
         bar.add(navigate);
         bar.add(ladle);
         bar.add(gradle);
+        bar.add(java);
         bar.add(view);
         return bar;
     }
@@ -483,9 +488,111 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    private JMenu buildJavaHomeMenu() {
+        JMenu java = new JMenu("Java");
+        java.setMnemonic(KeyEvent.VK_J);
+
+        javaHomeCurrentItem = new JMenuItem("JAVA_HOME: (not set)");
+        javaHomeCurrentItem.setEnabled(false);
+        javaHomeSetItem = new JMenuItem("Set JAVA_HOME…");
+        javaHomeSetItem.addActionListener(e -> setJavaHome());
+        javaHomeClearItem = new JMenuItem("Clear JAVA_HOME");
+        javaHomeClearItem.addActionListener(e -> clearJavaHome());
+
+        java.add(javaHomeCurrentItem);
+        java.addSeparator();
+        java.add(javaHomeSetItem);
+        java.add(javaHomeClearItem);
+        updateJavaHomeMenu();
+
+        java.addMenuListener(new MenuListener() {
+            @Override
+            public void menuSelected(MenuEvent e) {
+                updateJavaHomeMenu();
+            }
+
+            @Override
+            public void menuDeselected(MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(MenuEvent e) {
+            }
+        });
+        return java;
+    }
+
+    void updateJavaHomeMenu() {
+        Path home = JavaHome.configured();
+        if (javaHomeCurrentItem != null) {
+            javaHomeCurrentItem.setText(home == null
+                    ? "JAVA_HOME: (not set)"
+                    : "JAVA_HOME: " + home);
+            javaHomeCurrentItem.setEnabled(false);
+        }
+        if (javaHomeSetItem != null) {
+            javaHomeSetItem.setEnabled(true);
+        }
+        if (javaHomeClearItem != null) {
+            javaHomeClearItem.setEnabled(home != null);
+        }
+    }
+
     void updateBuildToolMenus() {
         updateLadleMenu();
         updateGradleMenu();
+    }
+
+    void setJavaHome() {
+        Path chosen = chooseJavaHome();
+        if (chosen == null) {
+            return;
+        }
+        try {
+            JavaHome.set(chosen);
+            Path home = JavaHome.configured();
+            updateJavaHomeMenu();
+            statusLabel.setText("JAVA_HOME set to " + home);
+        } catch (IllegalArgumentException ex) {
+            AppLog.exception("Could not set JAVA_HOME", ex);
+            JOptionPane.showMessageDialog(
+                    this,
+                    ex.getMessage(),
+                    "JAVA_HOME",
+                    JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    void clearJavaHome() {
+        JavaHome.clear();
+        updateJavaHomeMenu();
+        statusLabel.setText("JAVA_HOME cleared");
+    }
+
+    private Path chooseJavaHome() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Select JAVA_HOME (JDK folder with bin/javac)");
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        Path start = JavaHome.configured();
+        if (start == null) {
+            String env = System.getenv("JAVA_HOME");
+            if (env != null && !env.isBlank()) {
+                start = Path.of(env);
+            }
+        }
+        if (start == null && ScriptCommand.isWindows()) {
+            Path programFiles = Path.of("C:\\Program Files\\Java");
+            if (Files.isDirectory(programFiles)) {
+                start = programFiles;
+            }
+        }
+        if (start != null) {
+            chooser.setCurrentDirectory(start.toFile());
+        }
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return null;
+        }
+        return chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
     }
 
     void runLadle(String command) {

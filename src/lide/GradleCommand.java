@@ -149,6 +149,7 @@ public final class GradleCommand {
         ProcessBuilder builder = new ProcessBuilder(commandFor(projectRoot, command, extraArgs));
         builder.directory(projectRoot.toAbsolutePath().normalize().toFile());
         builder.redirectErrorStream(true);
+        JavaHome.apply(builder);
         applyGradleJavaHome(builder, projectRoot, defaultJdkCandidates());
         return builder;
     }
@@ -282,6 +283,7 @@ public final class GradleCommand {
 
     static List<Path> defaultJdkCandidates() {
         Set<Path> homes = new LinkedHashSet<>();
+        addJdkHome(homes, JavaHome.configured());
         addJdkHome(homes, envPath("JAVA_HOME"));
         addJdkHome(homes, propertyPath("java.home"));
         Path javaHome = propertyPath("java.home");

@@ -218,6 +218,9 @@ public final class LadleCommand {
     }
 
     static void applyJavaHome(ProcessBuilder builder) {
+        if (JavaHome.apply(builder)) {
+            return;
+        }
         String existing = builder.environment().get("JAVA_HOME");
         if (existing != null && !existing.isBlank()) {
             return;
@@ -229,9 +232,14 @@ public final class LadleCommand {
     }
 
     /**
-     * JDK root that contains {@code bin/javac}, from {@code JAVA_HOME} or {@code java.home}.
+     * JDK root that contains {@code bin/javac}, from {@code Java → Set JAVA_HOME},
+     * {@code JAVA_HOME}, or {@code java.home}.
      */
     static String detectedJdkHome() {
+        Path configured = JavaHome.configured();
+        if (configured != null && isJdkHome(configured.toString())) {
+            return configured.toAbsolutePath().normalize().toString();
+        }
         String env = System.getenv("JAVA_HOME");
         if (isJdkHome(env)) {
             return Path.of(env).toAbsolutePath().normalize().toString();

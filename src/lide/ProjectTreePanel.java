@@ -3,6 +3,13 @@ package lide;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.BasicStroke;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
@@ -18,12 +25,16 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import javax.swing.Icon;
+import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTree;
 import javax.swing.SwingWorker;
+import javax.swing.border.EmptyBorder;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -42,6 +53,8 @@ public final class ProjectTreePanel extends JPanel {
     private final JTree tree;
     private final DefaultTreeModel model;
     private final DefaultMutableTreeNode rootNode;
+    private final JButton refreshButton = new JButton(new RefreshIcon());
+    private final JLabel titleLabel = new JLabel("Project");
     private Consumer<Path> openFileHandler = path -> {
     };
     private Consumer<Path> newFileHandler = path -> {
@@ -69,6 +82,28 @@ public final class ProjectTreePanel extends JPanel {
         tree.setFont(IdeTheme.TREE_FONT);
         tree.setRowHeight(22);
         tree.setCellRenderer(new ProjectTreeRenderer());
+
+        titleLabel.setFont(IdeTheme.UI_FONT.deriveFont(Font.BOLD, 12f));
+        titleLabel.setForeground(IdeTheme.FG);
+        refreshButton.setToolTipText("Refresh");
+        refreshButton.setMargin(new java.awt.Insets(2, 2, 2, 2));
+        refreshButton.setPreferredSize(new Dimension(22, 22));
+        refreshButton.setMaximumSize(new Dimension(22, 22));
+        refreshButton.setFocusable(false);
+        refreshButton.setBorderPainted(false);
+        refreshButton.setContentAreaFilled(false);
+        refreshButton.setOpaque(false);
+        refreshButton.setEnabled(false);
+        refreshButton.addActionListener(e -> refresh());
+
+        JPanel toolbar = new JPanel(new BorderLayout());
+        toolbar.setBackground(IdeTheme.BG_RAISED);
+        toolbar.setBorder(new EmptyBorder(4, 8, 4, 8));
+        toolbar.add(titleLabel, BorderLayout.WEST);
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        right.setOpaque(false);
+        right.add(refreshButton);
+        toolbar.add(right, BorderLayout.EAST);
 
         tree.addTreeWillExpandListener(new TreeWillExpandListener() {
             @Override
@@ -114,6 +149,7 @@ public final class ProjectTreePanel extends JPanel {
         JScrollPane scroll = new JScrollPane(tree);
         scroll.setBorder(javax.swing.BorderFactory.createEmptyBorder());
         scroll.getViewport().setBackground(IdeTheme.BG_TREE);
+        add(toolbar, BorderLayout.NORTH);
         add(scroll, BorderLayout.CENTER);
     }
 
@@ -170,6 +206,31 @@ public final class ProjectTreePanel extends JPanel {
         node.add(new DefaultMutableTreeNode(new LabelNode("Loading…")));
         model.nodeStructureChanged(node);
         ensureChildrenLoaded(node);
+    }
+
+    /**
+     * Reloads the open project tree from disk. No-op when no directory is open.
+     */
+    public void refresh() {
+        if (projectRoot == null) {
+            return;
+        }
+        openDirectory(projectRoot);
+    }
+
+    JButton getRefreshButton() {
+        return refreshButton;
+    }
+
+    List<String> rootChildNames() {
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < rootNode.getChildCount(); i++) {
+            Object user = ((DefaultMutableTreeNode) rootNode.getChildAt(i)).getUserObject();
+            if (user instanceof FileNode fileNode && fileNode.path().getFileName() != null) {
+                names.add(fileNode.path().getFileName().toString());
+            }
+        }
+        return names;
     }
 
     public void setOpenFileHandler(Consumer<Path> openFileHandler) {
@@ -256,6 +317,7 @@ public final class ProjectTreePanel extends JPanel {
     public void openDirectory(Path directory) {
         Path root = directory.toAbsolutePath().normalize();
         this.projectRoot = root;
+        refreshButton.setEnabled(true);
         int generation = ++loadGeneration;
 
         rootNode.setUserObject(new FileNode(root, true));
@@ -346,6 +408,10 @@ public final class ProjectTreePanel extends JPanel {
         model.nodeStructureChanged(parent);
     }
 
+    static boolean skipName(String name) {
+        return name != null && SKIP_NAMES.contains(name);
+    }
+
     private static List<DefaultMutableTreeNode> listChildren(Path dir) {
         List<Entry> entries = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
@@ -355,7 +421,7 @@ public final class ProjectTreePanel extends JPanel {
                     continue;
                 }
                 String name = namePath.toString();
-                if (name.startsWith(".") || SKIP_NAMES.contains(name)) {
+                if (skipName(name)) {
                     continue;
                 }
                 try {
@@ -430,6 +496,42 @@ public final class ProjectTreePanel extends JPanel {
                 setBackground(IdeTheme.BG_TREE);
             }
             return this;
+        }
+    }
+
+    /**
+     * Circular-arrow glyph for the project tree refresh button.
+     */
+    static final class RefreshIcon implements Icon {
+        static final int SIZE = 14;
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                boolean on = c == null || c.isEnabled();
+                g2.setColor(on ? IdeTheme.FG_BRIGHT : IdeTheme.FG_DISABLED);
+                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int pad = 1;
+                int d = SIZE - pad * 2 - 1;
+                g2.drawArc(x + pad, y + pad + 1, d, d, 45, 270);
+                int[] xs = {x + SIZE - 2, x + SIZE - 7, x + SIZE - 2};
+                int[] ys = {y + 1, y + 1, y + 6};
+                g2.fillPolygon(xs, ys, 3);
+            } finally {
+                g2.dispose();
+            }
+        }
+
+        @Override
+        public int getIconWidth() {
+            return SIZE;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return SIZE;
         }
     }
 }
