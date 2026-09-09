@@ -1,0 +1,38 @@
+name: Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Package
+        run: .\package.bat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lide-windows
+          path: dist/Lide
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Package
+        run: sh package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lide-macos
+          path: dist/Lide.app

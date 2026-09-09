@@ -18,10 +18,19 @@ import java.util.List;
 import javax.imageio.ImageIO;
 
 /**
- * Generates Lide application icons (PNG + ICO).
+ * Generates Lide application icons (PNG, ICO, and ICNS).
  */
 public final class IconGenerator {
     private static final int[] ICO_SIZES = {16, 32, 48, 256};
+    private static final int[] ICNS_SIZES = {16, 32, 64, 128, 256, 512};
+    private static final byte[][] ICNS_TYPES = {
+            {'i', 'c', 'p', '4'},
+            {'i', 'c', 'p', '5'},
+            {'i', 'c', 'p', '6'},
+            {'i', 'c', '0', '7'},
+            {'i', 'c', '0', '8'},
+            {'i', 'c', '0', '9'}
+    };
 
     private IconGenerator() {
     }
@@ -94,6 +103,26 @@ public final class IconGenerator {
     }
 
     /**
+     * Writes a PNG-compressed ICNS (supported since macOS 10.8).
+     */
+    public static void writeIcns(Path path) throws IOException {
+        Path parent = path.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        List<byte[]> pngs = new ArrayList<>();
+        for (int size : ICNS_SIZES) {
+            BufferedImage image = render(size);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", baos);
+            pngs.add(baos.toByteArray());
+        }
+        try (OutputStream out = Files.newOutputStream(path)) {
+            writeIcnsFile(out, pngs, ICNS_TYPES);
+        }
+    }
+
+    /**
      * Writes a PNG-compressed ICO (supported since Windows Vista).
      */
     static void writeIcoFile(OutputStream out, List<byte[]> pngPayloads, int[] sizes)
@@ -126,6 +155,33 @@ public final class IconGenerator {
         }
     }
 
+    /**
+     * Writes a PNG-compressed ICNS. Each type is a 4-byte OSType matching
+     * {@code pngPayloads} in order.
+     */
+    static void writeIcnsFile(OutputStream out, List<byte[]> pngPayloads, byte[][] types)
+            throws IOException {
+        if (pngPayloads.size() != types.length) {
+            throw new IllegalArgumentException("PNG count must match icon types");
+        }
+        int fileLength = 8;
+        for (byte[] png : pngPayloads) {
+            fileLength += 8 + png.length;
+        }
+        out.write(new byte[] {'i', 'c', 'n', 's'});
+        writeIntBe(out, fileLength);
+        for (int i = 0; i < pngPayloads.size(); i++) {
+            byte[] type = types[i];
+            if (type.length != 4) {
+                throw new IllegalArgumentException("ICNS type must be 4 bytes");
+            }
+            byte[] png = pngPayloads.get(i);
+            out.write(type);
+            writeIntBe(out, 8 + png.length);
+            out.write(png);
+        }
+    }
+
     private static void writeShort(OutputStream out, int value) throws IOException {
         out.write(value & 0xFF);
         out.write((value >> 8) & 0xFF);
@@ -138,12 +194,20 @@ public final class IconGenerator {
         out.write((value >> 24) & 0xFF);
     }
 
+    private static void writeIntBe(OutputStream out, int value) throws IOException {
+        out.write((value >> 24) & 0xFF);
+        out.write((value >> 16) & 0xFF);
+        out.write((value >> 8) & 0xFF);
+        out.write(value & 0xFF);
+    }
+
     public static void main(String[] args) throws Exception {
         Path root = Path.of(args.length > 0 ? args[0] : ".").toAbsolutePath().normalize();
         Path assets = root.resolve("assets");
         writePng(assets.resolve("lide.png"), 256);
         writePng(assets.resolve("lide-32.png"), 32);
         writeIco(assets.resolve("lide.ico"));
+        writeIcns(assets.resolve("lide.icns"));
         // Classpath copies used by the running app.
         Path icons = root.resolve("src").resolve("lide").resolve("icons");
         writePng(icons.resolve("lide-16.png"), 16);

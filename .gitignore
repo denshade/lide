@@ -1,5 +1,6 @@
 # Build output
 out/
+dist/
 *.class
 
 # Generated launcher (machine-specific paths)

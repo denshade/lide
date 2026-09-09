@@ -4,7 +4,8 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 
 ## Project tree
 
-- Open a directory via **File → Open Directory** to show its files in the left tree.
+- Open a directory via **File → Open Directory** to show its files in the left tree. Dotfiles such as `.sdkmanrc` and `.gitignore` are listed. Build and VCS folders (`out`, `build`, `target`, `node_modules`, `.git`, `.idea`, `.svn`, `.hg`) are still skipped.
+- An icon-only **Refresh** button (circular arrow, tooltip **Refresh**) at the top of the tree reloads the project from disk (new files and folders appear; removed ones disappear). It is disabled until a project directory is open. Right-click **Refresh** on a folder still reloads that folder only.
 - **File → Open Recent** lists previously opened project directories (most recent first), persisted in `~/.lide/recent-projects.txt`. Missing directories are removed when selected; **Clear Recent Projects** wipes the list.
 - **File → New File** (Ctrl+N) creates an empty file in the selected tree folder (or the project root if nothing is selected) and opens it in the editor. Nested names such as `src/Hello.java` create missing parent folders. A project directory must be open first.
 - Double-click a file to open it in the editor.
@@ -50,15 +51,20 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 - The **Ladle** menu runs the project's Ladle build tool (a lightweight Java compiler/test/packager) when the open project contains `lib/ladle.jar` and `build.ini`.
 - **Install Ladle** copies `lib/ladle.jar` and `bin/` launchers from a nearby Ladle distribution (a sibling `ladle` folder, or a folder you pick) into the open project. A starter `build.ini` is written only when the project does not already have one; `[javac].path` is the JDK that is running Lide, or `.jdk` (downloaded by **Download Dependencies**) if no JDK is detected.
 - **Build** (F5) compiles sources; **Test** (F6) compiles and runs unit tests; **Release** packages a JAR; **Download Dependencies** (F4) fetches the JDK and JARs listed in the INI; **Clear** deletes the build directory. F4, F5, and F6 work from anywhere in the window (editor, project tree, or scripts panel), not only when the Ladle menu is open. Right-click **Run Test** on a `*Test.java` file runs only that class.
-- Commands run as `java -jar lib/ladle.jar <command> build.ini` with the project root as the working directory. If `JAVA_HOME` is unset, Lide supplies the detected JDK so `$JAVA_HOME` in `build.ini` still works. Output streams into the scripts panel console; Stop cancels the Ladle process and anything it spawned. Unsaved editors are saved first.
+- Commands run as `java -jar lib/ladle.jar <command> build.ini` with the project root as the working directory. If you set **Java → Set JAVA_HOME**, that JDK is used; otherwise if `JAVA_HOME` is unset, Lide supplies the detected JDK so `$JAVA_HOME` in `build.ini` still works. Output streams into the scripts panel console; Stop cancels the Ladle process and anything it spawned. Unsaved editors are saved first.
 - Menu items are enabled whenever a project directory is open (and no command is already running). Choosing an item on a project that is missing Ladle shows an explanation instead of leaving the menu greyed out.
 
 ## Gradle
 
 - The **Gradle** menu runs the project's Gradle build when the open project contains `build.gradle`, `build.gradle.kts`, `settings.gradle`, or `settings.gradle.kts`. There is no Install item: Gradle is not copied into the project the way Ladle is.
 - **Build** compiles main sources (`classes`); **Test** runs unit tests; **Release** packages outputs (`assemble`); **Download Dependencies** refreshes and lists the dependency tree; **Clear** deletes build outputs (`clean`). These are the Gradle counterparts of the Ladle menu. F4, F5, and F6 still belong to Ladle when the project has Ladle; on a Gradle-only project they run the matching Gradle tasks instead.
-- Commands prefer the Gradle wrapper (`gradlew.bat` on Windows, `gradlew` elsewhere) and fall back to `gradle` on PATH. They run with `--console=plain` and the project root as the working directory. Gradle is started on a JDK that wrapper version can run on (Java 26 needs Gradle 9.4+). If `JAVA_HOME` is too new, Lide looks for JDK 21/17 under `Program Files` and similar locations. If none is found, an explanation dialog is shown instead of Groovy's "Unsupported class file major version" error. Output streams into the scripts panel console; Stop cancels the Gradle client process and anything it spawned. Unsaved editors are saved first. Right-click **Run Test** on a `*Test.java` file runs `test --tests` for that class when Ladle is not available.
+- Commands prefer the Gradle wrapper (`gradlew.bat` on Windows, `gradlew` elsewhere) and fall back to `gradle` on PATH. They run with `--console=plain` and the project root as the working directory. Gradle is started on a JDK that wrapper version can run on (Java 26 needs Gradle 9.4+). If `JAVA_HOME` is too new, Lide looks for a compatible JDK from **Java → Set JAVA_HOME**, `Program Files`, and similar locations. If none is found, an explanation dialog is shown instead of Groovy's "Unsupported class file major version" error. Output streams into the scripts panel console; Stop cancels the Gradle client process and anything it spawned. Unsaved editors are saved first. Right-click **Run Test** on a `*Test.java` file runs `test --tests` for that class when Ladle is not available.
 - Menu items are enabled whenever a project directory is open (and no command is already running). Choosing an item on a project that is missing Gradle shows an explanation instead of leaving the menu greyed out.
+
+## Java
+
+- The **Java** menu sets the JDK Lide uses for **Ladle** and **Gradle** (`JAVA_HOME`, and that JDK's `bin` on `PATH`). This is an IDE setting, not per-project, and is stored in `~/.lide/java-home.txt`.
+- **Set JAVA_HOME…** asks for a folder that contains `bin/javac` (picking `bin` itself is accepted and stored as the parent). **Clear JAVA_HOME** removes the override so Lide falls back to the process `JAVA_HOME` or the JDK running the IDE. The current path is shown at the top of the menu.
 
 ## Window chrome
 
@@ -68,4 +74,5 @@ Lide is a lightweight Java Swing IDE for browsing a project directory and editin
 - Status bar shows the active file path, language, and modified state.
 - Recovered failures (I/O errors, look-and-feel setup, and similar) are appended to `~/.lide/lide.log`.
 - Application icons appear on the window and taskbar; run `create-launcher.bat` to generate `assets/lide.ico` and a `Lide.lnk` shortcut that launches the IDE with that icon.
+- Run `package.bat` (Windows) or `package.sh` (macOS) to build a standalone application image with a bundled Java runtime. Output is `dist/Lide/Lide.exe` on Windows and `dist/Lide.app` on macOS. Each image can only be built on its own operating system, and a JDK that includes `jpackage` (JDK 16+) is required. Unsigned macOS apps may need a Gatekeeper exception on first launch. GitHub Actions workflow **Package** (`workflow_dispatch`, or a `v*` tag) builds both platform images and uploads them as artifacts.
 - **View → About Lide** opens an information dialog showing the application icon (64×64, taken from the same icon set used for the window) next to a short description of the IDE.

@@ -70,4 +70,9 @@ public final class ScriptCommand {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         return File.pathSeparatorChar == ';' || os.contains("win");
     }
+
+    static boolean isMac() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        return os.contains("mac") || os.contains("darwin");
+    }
 }

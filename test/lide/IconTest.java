@@ -48,14 +48,27 @@ public final class IconTest {
         try {
             Path png = dir.resolve("lide.png");
             Path ico = dir.resolve("lide.ico");
+            Path icns = dir.resolve("lide.icns");
             IconGenerator.writePng(png, 64);
             IconGenerator.writeIco(ico);
+            IconGenerator.writeIcns(icns);
             assertTrue("png exists", Files.size(png) > 0);
             assertTrue("ico exists", Files.size(ico) > 100);
             byte[] header = Files.readAllBytes(ico);
             assertEqual("ico reserved", 0, header[0] | (header[1] << 8));
             assertEqual("ico type", 1, header[2] | (header[3] << 8));
             assertTrue("ico count", (header[4] | (header[5] << 8)) >= 1);
+            assertTrue("icns exists", Files.size(icns) > 100);
+            byte[] icnsHeader = Files.readAllBytes(icns);
+            assertEqual("icns magic0", (int) 'i', icnsHeader[0] & 0xFF);
+            assertEqual("icns magic1", (int) 'c', icnsHeader[1] & 0xFF);
+            assertEqual("icns magic2", (int) 'n', icnsHeader[2] & 0xFF);
+            assertEqual("icns magic3", (int) 's', icnsHeader[3] & 0xFF);
+            int declared = ((icnsHeader[4] & 0xFF) << 24)
+                    | ((icnsHeader[5] & 0xFF) << 16)
+                    | ((icnsHeader[6] & 0xFF) << 8)
+                    | (icnsHeader[7] & 0xFF);
+            assertEqual("icns length", icnsHeader.length, declared);
         } finally {
             try (var walk = Files.walk(dir)) {
                 walk.sorted((a, b) -> b.compareTo(a)).forEach(path -> {
