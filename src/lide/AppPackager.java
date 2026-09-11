@@ -2,13 +2,17 @@ package lide;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * Builds a native application image with a bundled Java runtime via {@code jpackage}.
@@ -18,8 +22,8 @@ import java.util.List;
  */
 public final class AppPackager {
     static final String APP_NAME = "Lide";
-    static final String MAIN_CLASS = FatJar.MAIN_CLASS;
-    static final String MAIN_JAR = FatJar.JAR_NAME;
+    static final String MAIN_CLASS = "lide.LideApp";
+    static final String MAIN_JAR = "lide.jar";
     static final String APP_VERSION = "1.0";
     static final String DESCRIPTION = "Lightweight Java IDE";
     static final String VENDOR = "Lide";
@@ -133,7 +137,16 @@ public final class AppPackager {
     }
 
     static Path classesDirectory(Path projectRoot) {
-        return FatJar.classesDirectory(projectRoot);
+        Path out = projectRoot.resolve("out").resolve("lide").resolve("LideApp.class");
+        if (Files.isRegularFile(out)) {
+            return projectRoot.resolve("out");
+        }
+        Path ladle = projectRoot.resolve("build").resolve("classes")
+                .resolve("lide").resolve("LideApp.class");
+        if (Files.isRegularFile(ladle)) {
+            return projectRoot.resolve("build").resolve("classes");
+        }
+        return null;
     }
 
     static void writeIcons(Path projectRoot) throws IOException {
@@ -150,11 +163,47 @@ public final class AppPackager {
     }
 
     static void copyClasspathIcons(Path projectRoot, Path classesDir) throws IOException {
-        FatJar.copyClasspathIcons(projectRoot, classesDir);
+        Path source = projectRoot.resolve("src").resolve("lide").resolve("icons");
+        Path target = classesDir.resolve("lide").resolve("icons");
+        if (!Files.isDirectory(source)) {
+            return;
+        }
+        Files.createDirectories(target);
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(source, "*.png")) {
+            for (Path png : stream) {
+                Path name = png.getFileName();
+                if (name != null) {
+                    Files.copy(png, target.resolve(name), StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 
     static void createJar(Path classesDir, Path jarFile) throws IOException {
-        FatJar.write(classesDir, List.of(), jarFile);
+        Path parent = jarFile.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(jarFile))) {
+            zip.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"));
+            zip.write(("Manifest-Version: 1.0\r\n"
+                    + "Main-Class: " + MAIN_CLASS + "\r\n"
+                    + "Created-By: Lide AppPackager\r\n"
+                    + "\r\n").getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+            try (var walk = Files.walk(classesDir)) {
+                List<Path> files = walk.filter(Files::isRegularFile).sorted().toList();
+                for (Path file : files) {
+                    String entry = classesDir.relativize(file).toString().replace('\\', '/');
+                    if (entry.startsWith("META-INF/")) {
+                        continue;
+                    }
+                    zip.putNextEntry(new ZipEntry(entry));
+                    Files.copy(file, zip);
+                    zip.closeEntry();
+                }
+            }
+        }
     }
 
     static List<String> commandFor(
