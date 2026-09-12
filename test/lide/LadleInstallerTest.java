@@ -101,6 +101,8 @@ public final class LadleInstallerTest {
         assertTrue("test", ini.contains("sources = test"));
         assertTrue("no JAVA_HOME placeholder", !ini.contains("path = $JAVA_HOME"));
         assertTrue("has javac path", ini.contains("path = "));
+        assertTrue("mentions main-class", ini.contains("main-class = your.package.Main"));
+        assertTrue("main-class is commented", ini.contains("# main-class ="));
     }
 
     private static void testInstallRejectsMissingJar() throws Exception {

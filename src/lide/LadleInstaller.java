@@ -172,7 +172,9 @@ public final class LadleInstaller {
                 [jar]
                 name = %s
                 directory = build
-                """.formatted(jarName);
+                # Set this so java -jar build/%s.jar knows the entry point:
+                # main-class = your.package.Main
+                """.formatted(jarName, jarName);
     }
 
     static String javacSection() {
