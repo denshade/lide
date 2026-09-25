@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
@@ -10,112 +15,90 @@ import javax.swing.SwingUtilities;
  * Tests for Edit menu actions: undo, redo, copy, paste.
  */
 public final class EditActionsTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run edit action tests");
-            return;
-        }
-        SwingUtilities.invokeAndWait(() -> {
-            testUndoRedo();
-            testCopyPaste();
-            testEditActionsViaTabPane();
-        });
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @BeforeEach
+    void requireDisplay() {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(),
+                "headless environment cannot run EditActionsTest");
     }
 
-    private static void testUndoRedo() {
+    @Test
+    void testUndoRedo() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testUndoRedo);
+            return;
+        }
         CodeEditor editor = new CodeEditor();
         editor.setPlainContent("hello", Language.PLAIN);
-        assertTrue("no undo after load", !editor.canUndo());
-        assertTrue("no redo after load", !editor.canRedo());
+        assertTrue(!editor.canUndo(), "no undo after load");
+        assertTrue(!editor.canRedo(), "no redo after load");
 
         editor.getTextPane().setCaretPosition(editor.getTextPane().getDocument().getLength());
         editor.getTextPane().replaceSelection("!");
-        assertTrue("can undo after edit", editor.canUndo());
-        assertEqual("text after edit", "hello!", normalize(editor.getText()));
+        assertTrue(editor.canUndo(), "can undo after edit");
+        assertEquals("hello!", normalize(editor.getText()), "text after edit");
 
         editor.undo();
-        assertEqual("text after undo", "hello", normalize(editor.getText()));
-        assertTrue("can redo after undo", editor.canRedo());
+        assertEquals("hello", normalize(editor.getText()), "text after undo");
+        assertTrue(editor.canRedo(), "can redo after undo");
 
         editor.redo();
-        assertEqual("text after redo", "hello!", normalize(editor.getText()));
+        assertEquals("hello!", normalize(editor.getText()), "text after redo");
     }
 
-    private static void testCopyPaste() {
+    @Test
+    void testCopyPaste() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testCopyPaste);
+            return;
+        }
         CodeEditor editor = new CodeEditor();
         editor.setPlainContent("abc", Language.PLAIN);
         editor.getTextPane().select(0, 3);
         editor.copy();
         editor.getTextPane().setCaretPosition(3);
         editor.paste();
-        assertEqual("paste after copy", "abcabc", normalize(editor.getText()));
+        assertEquals("abcabc", normalize(editor.getText()), "paste after copy");
     }
 
-    private static void testEditActionsViaTabPane() {
+    @Test
+    void testEditActionsViaTabPane() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testEditActionsViaTabPane);
+            return;
+        }
         EditorTabPane pane = new EditorTabPane();
         pane.openUntitled("t.txt", "xy", Language.PLAIN);
-        assertTrue("has editor", pane.hasActiveEditor());
-        assertTrue("no undo yet", !pane.canUndoActive());
+        assertTrue(pane.hasActiveEditor(), "has editor");
+        assertTrue(!pane.canUndoActive(), "no undo yet");
 
         CodeEditor editor = pane.getActiveEditor();
         editor.getTextPane().setCaretPosition(2);
         editor.getTextPane().replaceSelection("z");
-        assertTrue("can undo via pane", pane.canUndoActive());
-        assertTrue("undo via pane", pane.undoActive());
-        assertEqual("undone via pane", "xy", normalize(editor.getText()));
-        assertTrue("can redo via pane", pane.canRedoActive());
-        assertTrue("redo via pane", pane.redoActive());
-        assertEqual("redone via pane", "xyz", normalize(editor.getText()));
+        assertTrue(pane.canUndoActive(), "can undo via pane");
+        assertTrue(pane.undoActive(), "undo via pane");
+        assertEquals("xy", normalize(editor.getText()), "undone via pane");
+        assertTrue(pane.canRedoActive(), "can redo via pane");
+        assertTrue(pane.redoActive(), "redo via pane");
+        assertEquals("xyz", normalize(editor.getText()), "redone via pane");
 
         Toolkit.getDefaultToolkit().getSystemClipboard()
                 .setContents(new StringSelection("Q"), null);
         editor.getTextPane().setCaretPosition(0);
         editor.getTextPane().moveCaretPosition(0);
-        assertTrue("paste via pane", pane.pasteActive());
-        assertTrue("starts with paste", normalize(editor.getText()).startsWith("Q"));
+        assertTrue(pane.pasteActive(), "paste via pane");
+        assertTrue(normalize(editor.getText()).startsWith("Q"), "starts with paste");
 
         editor.getTextPane().select(0, 1);
-        assertTrue("copy via pane", pane.copyActive());
-        try {
-            String clip = (String) Toolkit.getDefaultToolkit()
+        assertTrue(pane.copyActive(), "copy via pane");
+                    String clip = (String) Toolkit.getDefaultToolkit()
                     .getSystemClipboard()
                     .getData(DataFlavor.stringFlavor);
-            assertEqual("clipboard", "Q", clip);
-        } catch (Exception ex) {
-            failed++;
-            System.err.println("FAIL clipboard read: " + ex.getMessage());
-        }
+            assertEquals("Q", clip, "clipboard");
     }
 
     private static String normalize(String text) {
         return text.replace("\r\n", "\n").replace('\r', '\n');
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected [" + expected + "] but was [" + actual + "]");
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private EditActionsTest() {
-    }
 }

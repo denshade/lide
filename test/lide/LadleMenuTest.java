@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import java.awt.GraphicsEnvironment;
 import java.awt.event.KeyEvent;
 import java.nio.file.Files;
@@ -16,67 +21,59 @@ import javax.swing.SwingUtilities;
  * Tests for the Ladle menu on the main window.
  */
 public final class LadleMenuTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run Ladle menu tests");
-            return;
-        }
-        SwingUtilities.invokeAndWait(() -> {
-            testMenuItems();
-            testItemsDisabledWithoutProject();
-        });
-        testItemsEnabledForLadleProject();
-        testItemsEnabledForPlainProject();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @BeforeEach
+    void requireDisplay() {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(),
+                "headless environment cannot run LadleMenuTest");
     }
 
-    private static void testMenuItems() {
+    @Test
+    void testMenuItems() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testMenuItems);
+            return;
+        }
         MainFrame frame = new MainFrame();
         try {
             JMenu ladle = findMenu(frame.getJMenuBar(), "Ladle");
-            assertTrue("Ladle menu exists", ladle != null);
+            assertTrue(ladle != null, "Ladle menu exists");
             List<String> labels = itemLabels(ladle);
-            assertEqual("item count", 6, labels.size());
-            assertEqual("install", "Install Ladle", labels.get(0));
-            assertEqual("build", "Build", labels.get(1));
-            assertEqual("test", "Test", labels.get(2));
-            assertEqual("release", "Release", labels.get(3));
-            assertEqual("deps", "Download Dependencies", labels.get(4));
-            assertEqual("clear", "Clear", labels.get(5));
-            assertEqual("download accelerator",
-                    KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0),
-                    findMenuItem(ladle, "Download Dependencies").getAccelerator());
-            assertEqual("build accelerator",
-                    KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0),
-                    findMenuItem(ladle, "Build").getAccelerator());
-            assertEqual("test accelerator",
-                    KeyStroke.getKeyStroke(KeyEvent.VK_F6, 0),
-                    findMenuItem(ladle, "Test").getAccelerator());
+            assertEquals(6, labels.size(), "item count");
+            assertEquals("Install Ladle", labels.get(0), "install");
+            assertEquals("Build", labels.get(1), "build");
+            assertEquals("Test", labels.get(2), "test");
+            assertEquals("Release", labels.get(3), "release");
+            assertEquals("Download Dependencies", labels.get(4), "deps");
+            assertEquals("Clear", labels.get(5), "clear");
+            assertEquals(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0), findMenuItem(ladle, "Download Dependencies").getAccelerator(), "download accelerator");
+            assertEquals(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), findMenuItem(ladle, "Build").getAccelerator(), "build accelerator");
+            assertEquals(KeyStroke.getKeyStroke(KeyEvent.VK_F6, 0), findMenuItem(ladle, "Test").getAccelerator(), "test accelerator");
         } finally {
             frame.dispose();
         }
     }
 
-    private static void testItemsDisabledWithoutProject() {
+    @Test
+    void testItemsDisabledWithoutProject() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testItemsDisabledWithoutProject);
+            return;
+        }
         MainFrame frame = new MainFrame();
         try {
             frame.updateLadleMenu();
             JMenu ladle = findMenu(frame.getJMenuBar(), "Ladle");
             for (JMenuItem item : menuItems(ladle)) {
-                assertTrue(item.getText() + " disabled", !item.isEnabled());
+                assertTrue(!item.isEnabled(), item.getText() + " disabled");
             }
         } finally {
             frame.dispose();
         }
     }
 
-    private static void testItemsEnabledForLadleProject() throws Exception {
+    @Test
+    void testItemsEnabledForLadleProject() throws Exception {
         Path root = Files.createTempDirectory("lide-ladle-menu");
         Files.createDirectories(root.resolve("lib"));
         Files.writeString(root.resolve("lib").resolve("ladle.jar"), "fake-jar");
@@ -88,7 +85,7 @@ public final class LadleMenuTest {
                     frame.applyProjectDirectory(root);
                     JMenu ladle = findMenu(frame.getJMenuBar(), "Ladle");
                     for (JMenuItem item : menuItems(ladle)) {
-                        assertTrue(item.getText() + " enabled", item.isEnabled());
+                        assertTrue(item.isEnabled(), item.getText() + " enabled");
                     }
                 } finally {
                     frame.dispose();
@@ -99,7 +96,8 @@ public final class LadleMenuTest {
         }
     }
 
-    private static void testItemsEnabledForPlainProject() throws Exception {
+    @Test
+    void testItemsEnabledForPlainProject() throws Exception {
         Path root = Files.createTempDirectory("lide-plain");
         try {
             Files.writeString(root.resolve("readme.txt"), "no ladle");
@@ -109,7 +107,7 @@ public final class LadleMenuTest {
                     frame.applyProjectDirectory(root);
                     JMenu ladle = findMenu(frame.getJMenuBar(), "Ladle");
                     for (JMenuItem item : menuItems(ladle)) {
-                        assertTrue(item.getText() + " enabled when project is open", item.isEnabled());
+                        assertTrue(item.isEnabled(), item.getText() + " enabled when project is open");
                     }
                 } finally {
                     frame.dispose();
@@ -170,24 +168,4 @@ public final class LadleMenuTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private LadleMenuTest() {
-    }
 }

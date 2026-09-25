@@ -1,5 +1,8 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,68 +14,69 @@ import javax.swing.SwingUtilities;
  * Tests for application-wide Ladle hotkeys.
  */
 public final class LadleHotkeysTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testCommandMapping();
-        testIgnoresModifiers();
-        testIgnoresUnknownKeys();
-        SwingUtilities.invokeAndWait(() -> {
-            testDispatchFromEditorComponent();
-            testDispatchIgnoresOtherWindows();
-            testDispatchIgnoresKeyRelease();
-        });
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
+    @Test
+    void testCommandMapping() throws Exception {
+        assertEquals(LadleCommand.DEPENDENCY, LadleHotkeys.commandFor(KeyEvent.VK_F4, 0), "F4");
+        assertEquals(LadleCommand.BUILD, LadleHotkeys.commandFor(KeyEvent.VK_F5, 0), "F5");
+        assertEquals(LadleCommand.TEST, LadleHotkeys.commandFor(KeyEvent.VK_F6, 0), "F6");
+    }
+
+    @Test
+    void testIgnoresModifiers() throws Exception {
+        assertEquals(null, LadleHotkeys.commandFor(KeyEvent.VK_F5, KeyEvent.SHIFT_DOWN_MASK), "shift F5");
+        assertEquals(null, LadleHotkeys.commandFor(KeyEvent.VK_F5, KeyEvent.CTRL_DOWN_MASK), "ctrl F5");
+        assertEquals(null, LadleHotkeys.commandFor(KeyEvent.VK_F4, KeyEvent.ALT_DOWN_MASK), "alt F4");
+    }
+
+    @Test
+    void testIgnoresUnknownKeys() throws Exception {
+        assertEquals(null, LadleHotkeys.commandFor(KeyEvent.VK_F3, 0), "F3");
+        assertEquals(null, LadleHotkeys.commandFor(KeyEvent.VK_F7, 0), "F7");
+    }
+
+    @Test
+    void testDispatchFromEditorComponent() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testDispatchFromEditorComponent);
+            return;
         }
-    }
-
-    private static void testCommandMapping() {
-        assertEqual("F4", LadleCommand.DEPENDENCY, LadleHotkeys.commandFor(KeyEvent.VK_F4, 0));
-        assertEqual("F5", LadleCommand.BUILD, LadleHotkeys.commandFor(KeyEvent.VK_F5, 0));
-        assertEqual("F6", LadleCommand.TEST, LadleHotkeys.commandFor(KeyEvent.VK_F6, 0));
-    }
-
-    private static void testIgnoresModifiers() {
-        assertEqual("shift F5", null, LadleHotkeys.commandFor(KeyEvent.VK_F5, KeyEvent.SHIFT_DOWN_MASK));
-        assertEqual("ctrl F5", null, LadleHotkeys.commandFor(KeyEvent.VK_F5, KeyEvent.CTRL_DOWN_MASK));
-        assertEqual("alt F4", null, LadleHotkeys.commandFor(KeyEvent.VK_F4, KeyEvent.ALT_DOWN_MASK));
-    }
-
-    private static void testIgnoresUnknownKeys() {
-        assertEqual("F3", null, LadleHotkeys.commandFor(KeyEvent.VK_F3, 0));
-        assertEqual("F7", null, LadleHotkeys.commandFor(KeyEvent.VK_F7, 0));
-    }
-
-    private static void testDispatchFromEditorComponent() {
         JFrame frame = new JFrame();
         JTextPane editor = new JTextPane();
         frame.add(editor);
         List<String> ran = new ArrayList<>();
         KeyEvent event = keyPressed(editor, KeyEvent.VK_F5);
-        assertTrue("F5 dispatched", LadleHotkeys.dispatch(event, frame, ran::add));
-        assertEqual("command", List.of(LadleCommand.BUILD), ran);
-        assertTrue("consumed", event.isConsumed());
+        assertTrue(LadleHotkeys.dispatch(event, frame, ran::add), "F5 dispatched");
+        assertEquals(List.of(LadleCommand.BUILD), ran, "command");
+        assertTrue(event.isConsumed(), "consumed");
         frame.dispose();
     }
 
-    private static void testDispatchIgnoresOtherWindows() {
+    @Test
+    void testDispatchIgnoresOtherWindows() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testDispatchIgnoresOtherWindows);
+            return;
+        }
         JFrame frame = new JFrame();
         JFrame other = new JFrame();
         JTextPane editor = new JTextPane();
         other.add(editor);
         List<String> ran = new ArrayList<>();
         KeyEvent event = keyPressed(editor, KeyEvent.VK_F6);
-        assertTrue("other window ignored", !LadleHotkeys.dispatch(event, frame, ran::add));
-        assertEqual("no command", List.of(), ran);
-        assertTrue("not consumed", !event.isConsumed());
+        assertTrue(!LadleHotkeys.dispatch(event, frame, ran::add), "other window ignored");
+        assertEquals(List.of(), ran, "no command");
+        assertTrue(!event.isConsumed(), "not consumed");
         frame.dispose();
         other.dispose();
     }
 
-    private static void testDispatchIgnoresKeyRelease() {
+    @Test
+    void testDispatchIgnoresKeyRelease() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testDispatchIgnoresKeyRelease);
+            return;
+        }
         JFrame frame = new JFrame();
         JTextPane editor = new JTextPane();
         frame.add(editor);
@@ -84,8 +88,8 @@ public final class LadleHotkeysTest {
                 0,
                 KeyEvent.VK_F4,
                 KeyEvent.CHAR_UNDEFINED);
-        assertTrue("release ignored", !LadleHotkeys.dispatch(event, frame, ran::add));
-        assertEqual("no command", List.of(), ran);
+        assertTrue(!LadleHotkeys.dispatch(event, frame, ran::add), "release ignored");
+        assertEquals(List.of(), ran, "no command");
         frame.dispose();
     }
 
@@ -99,24 +103,4 @@ public final class LadleHotkeysTest {
                 KeyEvent.CHAR_UNDEFINED);
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private LadleHotkeysTest() {
-    }
 }

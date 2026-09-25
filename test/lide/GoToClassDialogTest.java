@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,27 +16,19 @@ import javax.swing.SwingUtilities;
  * Tests for the Go to Class popup panel.
  */
 public final class GoToClassDialogTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run Go to Class UI tests");
-            return;
-        }
-        SwingUtilities.invokeAndWait(() -> {
-            testFiltersAsYouType();
-            testEnterOpensSelected();
-            testEmptyQueryShowsNothing();
-        });
-        testOpenClassHitJumpsToDeclaration();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @BeforeEach
+    void requireDisplay() {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(),
+                "headless environment cannot run GoToClassDialogTest");
     }
 
-    private static void testFiltersAsYouType() {
+    @Test
+    void testFiltersAsYouType() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testFiltersAsYouType);
+            return;
+        }
         Path a = Path.of("src", "ClassNavigator.java");
         Path b = Path.of("src", "CodeEditor.java");
         List<ClassSearch.Hit> all = List.of(
@@ -41,12 +38,17 @@ public final class GoToClassDialogTest {
         }, () -> {
         });
         panel.setQuery("Class");
-        assertEqual("one match", 1, panel.model.size());
-        assertEqual("navigator", "ClassNavigator", panel.model.get(0).className());
-        assertEqual("selected", 0, panel.results.getSelectedIndex());
+        assertEquals(1, panel.model.size(), "one match");
+        assertEquals("ClassNavigator", panel.model.get(0).className(), "navigator");
+        assertEquals(0, panel.results.getSelectedIndex(), "selected");
     }
 
-    private static void testEnterOpensSelected() {
+    @Test
+    void testEnterOpensSelected() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testEnterOpensSelected);
+            return;
+        }
         Path a = Path.of("src", "Foo.java");
         Path b = Path.of("src", "Bar.java");
         List<ClassSearch.Hit> all = List.of(
@@ -57,21 +59,27 @@ public final class GoToClassDialogTest {
         });
         panel.setQuery("Bar");
         panel.chooseSelected();
-        assertTrue("opened", opened.get() != null);
-        assertEqual("bar", "Bar", opened.get().className());
+        assertTrue(opened.get() != null, "opened");
+        assertEquals("Bar", opened.get().className(), "bar");
     }
 
-    private static void testEmptyQueryShowsNothing() {
+    @Test
+    void testEmptyQueryShowsNothing() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testEmptyQueryShowsNothing);
+            return;
+        }
         List<ClassSearch.Hit> all = List.of(
                 new ClassSearch.Hit("Foo", Path.of("Foo.java"), "Foo.java"));
         GoToClassDialog.Panel panel = GoToClassDialog.create(all, hit -> {
         }, () -> {
         });
         panel.setQuery("");
-        assertEqual("empty list", 0, panel.model.size());
+        assertEquals(0, panel.model.size(), "empty list");
     }
 
-    private static void testOpenClassHitJumpsToDeclaration() throws Exception {
+    @Test
+    void testOpenClassHitJumpsToDeclaration() throws Exception {
         Path root = Files.createTempDirectory("lide-goto-open");
         try {
             Path file = root.resolve("Foo.java");
@@ -82,11 +90,9 @@ public final class GoToClassDialogTest {
                 try {
                     frame.applyProjectDirectory(root);
                     frame.openClassHit(new ClassSearch.Hit("Foo", file, "Foo.java"));
-                    assertEqual("opened file", file.toAbsolutePath().normalize(),
-                            frame.editorTabs().getActiveFilePath());
+                    assertEquals(file.toAbsolutePath().normalize(), frame.editorTabs().getActiveFilePath(), "opened file");
                     int expected = source.replace("\r\n", "\n").indexOf("Foo", source.indexOf("class"));
-                    assertEqual("caret on class name", expected,
-                            frame.editorTabs().getActiveEditor().getCaretPosition());
+                    assertEquals(expected, frame.editorTabs().getActiveEditor().getCaretPosition(), "caret on class name");
                 } finally {
                     frame.dispose();
                 }
@@ -108,24 +114,4 @@ public final class GoToClassDialogTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private GoToClassDialogTest() {
-    }
 }

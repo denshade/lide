@@ -1,5 +1,11 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -8,39 +14,23 @@ import java.util.List;
  * Tests for persisted JAVA_HOME used by Ladle and Gradle.
  */
 public final class JavaHomeTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        Path previousStorage = JavaHome.defaultStorageFile();
-        try {
-            testResolveJdkHome();
-            testSetAndClearPersists();
-            testSetRejectsNonJdk();
-            testSetAcceptsBinFolder();
-            testApplySetsEnvironment();
-            testDetectedJdkHomePrefersConfigured();
-        } finally {
-            JavaHome.useStorageFile(previousStorage);
-        }
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @AfterEach
+    void restoreJavaHomeStorage() {
+        JavaHome.useStorageFile(JavaHome.defaultStorageFile());
     }
 
-    private static void testResolveJdkHome() throws Exception {
+    @Test
+    void testResolveJdkHome() throws Exception {
         Path jdk = Files.createTempDirectory("lide-javahome-resolve");
         try {
             writeFakeJdk(jdk, 21);
-            assertEqual("jdk root", jdk.toAbsolutePath().normalize(), JavaHome.resolveJdkHome(jdk));
-            assertEqual("bin folder",
-                    jdk.toAbsolutePath().normalize(),
-                    JavaHome.resolveJdkHome(jdk.resolve("bin")));
-            assertTrue("null", JavaHome.resolveJdkHome(null) == null);
+            assertEquals(jdk.toAbsolutePath().normalize(), JavaHome.resolveJdkHome(jdk), "jdk root");
+            assertEquals(jdk.toAbsolutePath().normalize(), JavaHome.resolveJdkHome(jdk.resolve("bin")), "bin folder");
+            assertTrue(JavaHome.resolveJdkHome(null) == null, "null");
             Path other = Files.createTempDirectory("lide-javahome-notjdk");
             try {
-                assertTrue("plain folder", JavaHome.resolveJdkHome(other) == null);
+                assertTrue(JavaHome.resolveJdkHome(other) == null, "plain folder");
             } finally {
                 deleteRecursive(other);
             }
@@ -49,48 +39,46 @@ public final class JavaHomeTest {
         }
     }
 
-    private static void testSetAndClearPersists() throws Exception {
+    @Test
+    void testSetAndClearPersists() throws Exception {
         Path storage = Files.createTempFile("lide-javahome-", ".txt");
         Path jdk = Files.createTempDirectory("lide-javahome-persist");
         try {
             Files.deleteIfExists(storage);
             writeFakeJdk(jdk, 21);
             JavaHome.useStorageFile(storage);
-            assertTrue("unset", JavaHome.configured() == null);
+            assertTrue(JavaHome.configured() == null, "unset");
             JavaHome.set(jdk);
-            assertEqual("set", jdk.toAbsolutePath().normalize(), JavaHome.configured());
+            assertEquals(jdk.toAbsolutePath().normalize(), JavaHome.configured(), "set");
             JavaHome.useStorageFile(storage);
-            assertEqual("reloaded", jdk.toAbsolutePath().normalize(), JavaHome.configured());
+            assertEquals(jdk.toAbsolutePath().normalize(), JavaHome.configured(), "reloaded");
             JavaHome.clear();
-            assertTrue("cleared", JavaHome.configured() == null);
-            assertTrue("storage removed", !Files.isRegularFile(storage));
+            assertTrue(JavaHome.configured() == null, "cleared");
+            assertTrue(!Files.isRegularFile(storage), "storage removed");
         } finally {
             deleteRecursive(jdk);
             Files.deleteIfExists(storage);
         }
     }
 
-    private static void testSetRejectsNonJdk() throws Exception {
+    @Test
+    void testSetRejectsNonJdk() throws Exception {
         Path storage = Files.createTempFile("lide-javahome-", ".txt");
         Path other = Files.createTempDirectory("lide-javahome-reject");
         try {
             Files.deleteIfExists(storage);
             JavaHome.useStorageFile(storage);
-            try {
-                JavaHome.set(other);
-                failed++;
-                System.err.println("FAIL expected exception for non-JDK folder");
-            } catch (IllegalArgumentException ex) {
-                assertTrue("mentions javac", ex.getMessage().contains("javac"));
-                assertTrue("still unset", JavaHome.configured() == null);
-            }
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> JavaHome.set(other));
+        assertTrue(ex.getMessage().contains("javac"), "mentions javac");
+                assertTrue(JavaHome.configured() == null, "still unset");
         } finally {
             deleteRecursive(other);
             Files.deleteIfExists(storage);
         }
     }
 
-    private static void testSetAcceptsBinFolder() throws Exception {
+    @Test
+    void testSetAcceptsBinFolder() throws Exception {
         Path storage = Files.createTempFile("lide-javahome-", ".txt");
         Path jdk = Files.createTempDirectory("lide-javahome-bin");
         try {
@@ -98,9 +86,7 @@ public final class JavaHomeTest {
             writeFakeJdk(jdk, 17);
             JavaHome.useStorageFile(storage);
             JavaHome.set(jdk.resolve("bin"));
-            assertEqual("normalized to root",
-                    jdk.toAbsolutePath().normalize(),
-                    JavaHome.configured());
+            assertEquals(jdk.toAbsolutePath().normalize(), JavaHome.configured(), "normalized to root");
         } finally {
             JavaHome.clear();
             deleteRecursive(jdk);
@@ -108,7 +94,8 @@ public final class JavaHomeTest {
         }
     }
 
-    private static void testApplySetsEnvironment() throws Exception {
+    @Test
+    void testApplySetsEnvironment() throws Exception {
         Path storage = Files.createTempFile("lide-javahome-", ".txt");
         Path jdk = Files.createTempDirectory("lide-javahome-apply");
         try {
@@ -116,16 +103,14 @@ public final class JavaHomeTest {
             writeFakeJdk(jdk, 21);
             JavaHome.useStorageFile(storage);
             ProcessBuilder before = new ProcessBuilder("java");
-            assertTrue("no configured", !JavaHome.apply(before));
+            assertTrue(!JavaHome.apply(before), "no configured");
             JavaHome.set(jdk);
             ProcessBuilder builder = new ProcessBuilder("java");
             builder.environment().put("JAVA_HOME", "/old/jdk");
-            assertTrue("applied", JavaHome.apply(builder));
-            assertEqual("JAVA_HOME",
-                    jdk.toAbsolutePath().normalize().toString(),
-                    Path.of(builder.environment().get("JAVA_HOME")).toAbsolutePath().normalize().toString());
+            assertTrue(JavaHome.apply(builder), "applied");
+            assertEquals(jdk.toAbsolutePath().normalize().toString(), Path.of(builder.environment().get("JAVA_HOME")).toAbsolutePath().normalize().toString(), "JAVA_HOME");
             String path = pathValue(builder);
-            assertTrue("bin on PATH", path != null && path.contains(jdk.resolve("bin").toString()));
+            assertTrue(path != null && path.contains(jdk.resolve("bin").toString()), "bin on PATH");
         } finally {
             JavaHome.clear();
             deleteRecursive(jdk);
@@ -133,7 +118,8 @@ public final class JavaHomeTest {
         }
     }
 
-    private static void testDetectedJdkHomePrefersConfigured() throws Exception {
+    @Test
+    void testDetectedJdkHomePrefersConfigured() throws Exception {
         Path storage = Files.createTempFile("lide-javahome-", ".txt");
         Path jdk = Files.createTempDirectory("lide-javahome-detect");
         try {
@@ -141,15 +127,11 @@ public final class JavaHomeTest {
             writeFakeJdk(jdk, 21);
             JavaHome.useStorageFile(storage);
             JavaHome.set(jdk);
-            assertEqual("detected",
-                    jdk.toAbsolutePath().normalize().toString(),
-                    Path.of(LadleCommand.detectedJdkHome()).toAbsolutePath().normalize().toString());
+            assertEquals(jdk.toAbsolutePath().normalize().toString(), Path.of(LadleCommand.detectedJdkHome()).toAbsolutePath().normalize().toString(), "detected");
             ProcessBuilder ladle = new ProcessBuilder("java");
             ladle.environment().put("JAVA_HOME", "/ignored");
             LadleCommand.applyJavaHome(ladle);
-            assertEqual("ladle JAVA_HOME",
-                    jdk.toAbsolutePath().normalize().toString(),
-                    Path.of(ladle.environment().get("JAVA_HOME")).toAbsolutePath().normalize().toString());
+            assertEquals(jdk.toAbsolutePath().normalize().toString(), Path.of(ladle.environment().get("JAVA_HOME")).toAbsolutePath().normalize().toString(), "ladle JAVA_HOME");
         } finally {
             JavaHome.clear();
             deleteRecursive(jdk);
@@ -185,24 +167,4 @@ public final class JavaHomeTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private JavaHomeTest() {
-    }
 }

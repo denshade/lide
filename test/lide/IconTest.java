@@ -1,5 +1,9 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
 import java.awt.GraphicsEnvironment;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -18,32 +22,17 @@ import javax.swing.SwingUtilities;
  * Tests for icon generation and loading.
  */
 public final class IconTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testRenderSizes();
-        testWriteIcoAndPng();
-        testLoadWindowIcons();
-        testDialogIcon();
-        if (!GraphicsEnvironment.isHeadless()) {
-            SwingUtilities.invokeAndWait(IconTest::testMainFrameHasIcons);
-            SwingUtilities.invokeAndWait(IconTest::testAboutMenuItemUsesAppIcon);
-        }
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testRenderSizes() {
+    @Test
+    void testRenderSizes() throws Exception {
         var image = IconGenerator.render(32);
-        assertEqual("width", 32, image.getWidth());
-        assertEqual("height", 32, image.getHeight());
-        assertTrue("has pixels", image.getRGB(16, 16) != 0);
+        assertEquals(32, image.getWidth(), "width");
+        assertEquals(32, image.getHeight(), "height");
+        assertTrue(image.getRGB(16, 16) != 0, "has pixels");
     }
 
-    private static void testWriteIcoAndPng() throws Exception {
+    @Test
+    void testWriteIcoAndPng() throws Exception {
         Path dir = Files.createTempDirectory("lide-icons");
         try {
             Path png = dir.resolve("lide.png");
@@ -52,23 +41,23 @@ public final class IconTest {
             IconGenerator.writePng(png, 64);
             IconGenerator.writeIco(ico);
             IconGenerator.writeIcns(icns);
-            assertTrue("png exists", Files.size(png) > 0);
-            assertTrue("ico exists", Files.size(ico) > 100);
+            assertTrue(Files.size(png) > 0, "png exists");
+            assertTrue(Files.size(ico) > 100, "ico exists");
             byte[] header = Files.readAllBytes(ico);
-            assertEqual("ico reserved", 0, header[0] | (header[1] << 8));
-            assertEqual("ico type", 1, header[2] | (header[3] << 8));
-            assertTrue("ico count", (header[4] | (header[5] << 8)) >= 1);
-            assertTrue("icns exists", Files.size(icns) > 100);
+            assertEquals(0, header[0] | (header[1] << 8), "ico reserved");
+            assertEquals(1, header[2] | (header[3] << 8), "ico type");
+            assertTrue((header[4] | (header[5] << 8)) >= 1, "ico count");
+            assertTrue(Files.size(icns) > 100, "icns exists");
             byte[] icnsHeader = Files.readAllBytes(icns);
-            assertEqual("icns magic0", (int) 'i', icnsHeader[0] & 0xFF);
-            assertEqual("icns magic1", (int) 'c', icnsHeader[1] & 0xFF);
-            assertEqual("icns magic2", (int) 'n', icnsHeader[2] & 0xFF);
-            assertEqual("icns magic3", (int) 's', icnsHeader[3] & 0xFF);
+            assertEquals((int) 'i', icnsHeader[0] & 0xFF, "icns magic0");
+            assertEquals((int) 'c', icnsHeader[1] & 0xFF, "icns magic1");
+            assertEquals((int) 'n', icnsHeader[2] & 0xFF, "icns magic2");
+            assertEquals((int) 's', icnsHeader[3] & 0xFF, "icns magic3");
             int declared = ((icnsHeader[4] & 0xFF) << 24)
                     | ((icnsHeader[5] & 0xFF) << 16)
                     | ((icnsHeader[6] & 0xFF) << 8)
                     | (icnsHeader[7] & 0xFF);
-            assertEqual("icns length", icnsHeader.length, declared);
+            assertEquals(icnsHeader.length, declared, "icns length");
         } finally {
             try (var walk = Files.walk(dir)) {
                 walk.sorted((a, b) -> b.compareTo(a)).forEach(path -> {
@@ -82,17 +71,19 @@ public final class IconTest {
         }
     }
 
-    private static void testLoadWindowIcons() {
+    @Test
+    void testLoadWindowIcons() throws Exception {
         List<Image> icons = AppIcons.loadWindowIcons();
-        assertTrue("icons loaded", !icons.isEmpty());
-        assertTrue("first icon sized", icons.get(0).getWidth(null) > 0);
+        assertTrue(!icons.isEmpty(), "icons loaded");
+        assertTrue(icons.get(0).getWidth(null) > 0, "first icon sized");
     }
 
-    private static void testDialogIcon() {
+    @Test
+    void testDialogIcon() throws Exception {
         Icon icon = AppIcons.dialogIcon(MainFrame.ABOUT_ICON_SIZE);
-        assertTrue("dialog icon present", icon != null);
-        assertEqual("dialog icon width", MainFrame.ABOUT_ICON_SIZE, icon.getIconWidth());
-        assertEqual("dialog icon height", MainFrame.ABOUT_ICON_SIZE, icon.getIconHeight());
+        assertTrue(icon != null, "dialog icon present");
+        assertEquals(MainFrame.ABOUT_ICON_SIZE, icon.getIconWidth(), "dialog icon width");
+        assertEquals(MainFrame.ABOUT_ICON_SIZE, icon.getIconHeight(), "dialog icon height");
 
         BufferedImage rendered = toImage(icon);
         Image appIcon = null;
@@ -102,7 +93,7 @@ public final class IconTest {
                 break;
             }
         }
-        assertTrue("app icon at dialog size available", appIcon != null);
+        assertTrue(appIcon != null, "app icon at dialog size available");
         if (appIcon == null) {
             return;
         }
@@ -116,7 +107,7 @@ public final class IconTest {
                 }
             }
         }
-        assertTrue("dialog icon matches application icon", identical);
+        assertTrue(identical, "dialog icon matches application icon");
     }
 
     private static BufferedImage toImage(Icon icon) {
@@ -131,15 +122,20 @@ public final class IconTest {
         return image;
     }
 
-    private static void testAboutMenuItemUsesAppIcon() {
+    @Test
+    void testAboutMenuItemUsesAppIcon() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testAboutMenuItemUsesAppIcon);
+            return;
+        }
         MainFrame frame = new MainFrame();
         try {
             JMenuItem about = findMenuItem(frame.getJMenuBar(), "About Lide");
-            assertTrue("about menu item exists", about != null);
+            assertTrue(about != null, "about menu item exists");
             Icon icon = MainFrame.aboutDialogIcon();
-            assertTrue("about dialog icon present", icon != null);
-            assertEqual("about dialog icon size", MainFrame.ABOUT_ICON_SIZE,
-                    icon == null ? -1 : icon.getIconWidth());
+            assertTrue(icon != null, "about dialog icon present");
+            assertEquals(MainFrame.ABOUT_ICON_SIZE, icon == null ? -1 : icon.getIconWidth(), "about dialog icon size");
         } finally {
             frame.dispose();
         }
@@ -164,34 +160,20 @@ public final class IconTest {
         return null;
     }
 
-    private static void testMainFrameHasIcons() {
+    @Test
+    void testMainFrameHasIcons() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testMainFrameHasIcons);
+            return;
+        }
         MainFrame frame = new MainFrame();
         try {
             List<Image> icons = frame.getIconImages();
-            assertTrue("frame icons", icons != null && !icons.isEmpty());
+            assertTrue(icons != null && !icons.isEmpty(), "frame icons");
         } finally {
             frame.dispose();
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private IconTest() {
-    }
 }

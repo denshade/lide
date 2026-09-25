@@ -1,5 +1,9 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
 import java.awt.GraphicsEnvironment;
 import javax.swing.Icon;
 import javax.swing.JMenu;
@@ -13,37 +17,27 @@ import javax.swing.plaf.basic.BasicMenuItemUI;
  * Tests for compact menu spacing.
  */
 public final class MenuSpacingTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testCompactMenuDefaults();
-        testButtonEnabledDisabledContrast();
-        if (!GraphicsEnvironment.isHeadless()) {
-            SwingUtilities.invokeAndWait(MenuSpacingTest::testMenuItemUsesBasicUiAndTightLeft);
-        }
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testCompactMenuDefaults() {
+    @Test
+    void testCompactMenuDefaults() throws Exception {
         IdeTheme.apply();
-        assertEqual("MenuItemUI", "javax.swing.plaf.basic.BasicMenuItemUI",
-                UIManager.get("MenuItemUI"));
+        assertEquals("javax.swing.plaf.basic.BasicMenuItemUI", UIManager.get("MenuItemUI"), "MenuItemUI");
         Object checkIcon = UIManager.get("MenuItem.checkIcon");
-        assertTrue("check icon present", checkIcon instanceof Icon);
-        assertEqual("check icon width", 0, ((Icon) checkIcon).getIconWidth());
-        assertEqual("afterCheckIconGap", 0, UIManager.get("MenuItem.afterCheckIconGap"));
-        assertEqual("minimumTextOffset", 0, UIManager.get("MenuItem.minimumTextOffset"));
-        assertEqual("disabled fg", IdeTheme.FG_DIM.getRGB(),
-                UIManager.getColor("MenuItem.disabledForeground").getRGB());
-        assertEqual("button disabled text", IdeTheme.FG_DISABLED.getRGB(),
-                UIManager.getColor("Button.disabledText").getRGB());
+        assertTrue(checkIcon instanceof Icon, "check icon present");
+        assertEquals(0, ((Icon) checkIcon).getIconWidth(), "check icon width");
+        assertEquals(0, UIManager.get("MenuItem.afterCheckIconGap"), "afterCheckIconGap");
+        assertEquals(0, UIManager.get("MenuItem.minimumTextOffset"), "minimumTextOffset");
+        assertEquals(IdeTheme.FG_DIM.getRGB(), UIManager.getColor("MenuItem.disabledForeground").getRGB(), "disabled fg");
+        assertEquals(IdeTheme.FG_DISABLED.getRGB(), UIManager.getColor("Button.disabledText").getRGB(), "button disabled text");
     }
 
-    private static void testMenuItemUsesBasicUiAndTightLeft() {
+    @Test
+    void testMenuItemUsesBasicUiAndTightLeft() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testMenuItemUsesBasicUiAndTightLeft);
+            return;
+        }
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ex) {
@@ -60,59 +54,36 @@ public final class MenuSpacingTest {
         file.add(disabled);
         bar.add(file);
 
-        assertTrue("uses basic menu item UI", open.getUI() instanceof BasicMenuItemUI);
-        assertEqual("enabled foreground", IdeTheme.FG, open.getForeground());
+        assertTrue(open.getUI() instanceof BasicMenuItemUI, "uses basic menu item UI");
+        assertEquals(IdeTheme.FG, open.getForeground(), "enabled foreground");
 
         // Preferred width should stay close to text width (no large check gutter).
         int textWidth = open.getFontMetrics(open.getFont()).stringWidth(open.getText());
         int itemWidth = open.getPreferredSize().width;
         int gutter = itemWidth - textWidth;
-        assertTrue("left gutter reasonable (< 40px beyond text+padding), was " + gutter,
-                gutter < 40);
+        assertTrue(gutter < 40, "left gutter reasonable (< 40px beyond text+padding), was " + gutter);
 
-        assertTrue("disabled fg darker than enabled",
-                luminance(IdeTheme.FG_DIM) < luminance(IdeTheme.FG));
+        assertTrue(luminance(IdeTheme.FG_DIM) < luminance(IdeTheme.FG), "disabled fg darker than enabled");
     }
 
-    private static void testButtonEnabledDisabledContrast() {
+    @Test
+    void testButtonEnabledDisabledContrast() throws Exception {
         javax.swing.JButton on = new javax.swing.JButton("Run");
         javax.swing.JButton off = new javax.swing.JButton("Stop");
         IdeTheme.styleButton(on);
         IdeTheme.styleButton(off);
         off.setEnabled(false);
 
-        assertEqual("enabled fg", IdeTheme.FG_BRIGHT, on.getForeground());
-        assertEqual("enabled bg", IdeTheme.BUTTON_BG, on.getBackground());
-        assertEqual("disabled fg", IdeTheme.FG_DISABLED, off.getForeground());
-        assertEqual("disabled bg", IdeTheme.BUTTON_BG_DISABLED, off.getBackground());
-        assertTrue("enabled fill lighter than disabled",
-                luminance(on.getBackground()) > luminance(off.getBackground()));
-        assertTrue("enabled label brighter than disabled",
-                luminance(on.getForeground()) > luminance(off.getForeground()) + 80);
+        assertEquals(IdeTheme.FG_BRIGHT, on.getForeground(), "enabled fg");
+        assertEquals(IdeTheme.BUTTON_BG, on.getBackground(), "enabled bg");
+        assertEquals(IdeTheme.FG_DISABLED, off.getForeground(), "disabled fg");
+        assertEquals(IdeTheme.BUTTON_BG_DISABLED, off.getBackground(), "disabled bg");
+        assertTrue(luminance(on.getBackground()) > luminance(off.getBackground()), "enabled fill lighter than disabled");
+        assertTrue(luminance(on.getForeground()) > luminance(off.getForeground()) + 80, "enabled label brighter than disabled");
     }
 
     private static double luminance(java.awt.Color c) {
         return 0.2126 * c.getRed() + 0.7152 * c.getGreen() + 0.0722 * c.getBlue();
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private MenuSpacingTest() {
-    }
 }

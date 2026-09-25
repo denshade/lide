@@ -1,5 +1,8 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -8,41 +11,29 @@ import java.util.List;
  * Tests for class-name search used by Go to Class.
  */
 public final class ClassSearchTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testRankExactPrefixContainsCamel();
-        testCamelMatch();
-        testFilterOrdersBestMatchesFirst();
-        testEmptyQueryReturnsNothing();
-        testListsJavaAndSkipsBuildDir();
-        testIsClassFile();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @Test
+    void testRankExactPrefixContainsCamel() throws Exception {
+        assertEquals(0, ClassSearch.rank("ClassNavigator", "ClassNavigator"), "exact");
+        assertEquals(0, ClassSearch.rank("ClassNavigator", "classnavigator"), "exact ignore case");
+        assertEquals(1, ClassSearch.rank("ClassNavigator", "Class"), "prefix");
+        assertEquals(2, ClassSearch.rank("ClassNavigator", "Nav"), "contains");
+        assertEquals(3, ClassSearch.rank("ClassNavigator", "CN"), "camel");
+        assertEquals(-1, ClassSearch.rank("ClassNavigator", "XYZ"), "no match");
+        assertEquals(-1, ClassSearch.rank("Foo", ""), "blank query");
     }
 
-    private static void testRankExactPrefixContainsCamel() {
-        assertEqual("exact", 0, ClassSearch.rank("ClassNavigator", "ClassNavigator"));
-        assertEqual("exact ignore case", 0, ClassSearch.rank("ClassNavigator", "classnavigator"));
-        assertEqual("prefix", 1, ClassSearch.rank("ClassNavigator", "Class"));
-        assertEqual("contains", 2, ClassSearch.rank("ClassNavigator", "Nav"));
-        assertEqual("camel", 3, ClassSearch.rank("ClassNavigator", "CN"));
-        assertEqual("no match", -1, ClassSearch.rank("ClassNavigator", "XYZ"));
-        assertEqual("blank query", -1, ClassSearch.rank("Foo", ""));
+    @Test
+    void testCamelMatch() throws Exception {
+        assertTrue(ClassSearch.camelMatch("ClassNavigator", "CN"), "CN");
+        assertTrue(ClassSearch.camelMatch("ClassNavigator", "cn"), "cn");
+        assertTrue(ClassSearch.camelMatch("ClassNavigator", "CNav"), "CNav");
+        assertTrue(!ClassSearch.camelMatch("ClassNavigator", "XYZ"), "no match");
+        assertTrue(ClassSearch.camelMatch("CodeEditor", "CE"), "CodeEditor CE");
     }
 
-    private static void testCamelMatch() {
-        assertTrue("CN", ClassSearch.camelMatch("ClassNavigator", "CN"));
-        assertTrue("cn", ClassSearch.camelMatch("ClassNavigator", "cn"));
-        assertTrue("CNav", ClassSearch.camelMatch("ClassNavigator", "CNav"));
-        assertTrue("no match", !ClassSearch.camelMatch("ClassNavigator", "XYZ"));
-        assertTrue("CodeEditor CE", ClassSearch.camelMatch("CodeEditor", "CE"));
-    }
-
-    private static void testFilterOrdersBestMatchesFirst() {
+    @Test
+    void testFilterOrdersBestMatchesFirst() throws Exception {
         Path a = Path.of("src", "ClassNavigator.java");
         Path b = Path.of("src", "ClassSearch.java");
         Path c = Path.of("test", "ClassNavigatorTest.java");
@@ -51,22 +42,23 @@ public final class ClassSearchTest {
                 new ClassSearch.Hit("ClassSearch", b, "src/ClassSearch.java"),
                 new ClassSearch.Hit("ClassNavigatorTest", c, "test/ClassNavigatorTest.java"));
         List<ClassSearch.Hit> hits = ClassSearch.filter(all, "ClassNavigator");
-        assertEqual("exact first", "ClassNavigator", hits.get(0).className());
-        assertTrue("includes test", hits.stream().anyMatch(h -> h.className().equals("ClassNavigatorTest")));
+        assertEquals("ClassNavigator", hits.get(0).className(), "exact first");
+        assertTrue(hits.stream().anyMatch(h -> h.className().equals("ClassNavigatorTest")), "includes test");
         List<ClassSearch.Hit> camel = ClassSearch.filter(all, "CN");
-        assertTrue("camel finds navigator",
-                camel.stream().anyMatch(h -> h.className().equals("ClassNavigator")));
+        assertTrue(camel.stream().anyMatch(h -> h.className().equals("ClassNavigator")), "camel finds navigator");
     }
 
-    private static void testEmptyQueryReturnsNothing() {
+    @Test
+    void testEmptyQueryReturnsNothing() throws Exception {
         List<ClassSearch.Hit> all = List.of(
                 new ClassSearch.Hit("Foo", Path.of("Foo.java"), "Foo.java"));
-        assertEqual("empty", List.of(), ClassSearch.filter(all, "  "));
-        assertEqual("null query", List.of(), ClassSearch.filter(all, null));
-        assertEqual("null list", List.of(), ClassSearch.filter(null, "Foo"));
+        assertEquals(List.of(), ClassSearch.filter(all, "  "), "empty");
+        assertEquals(List.of(), ClassSearch.filter(all, null), "null query");
+        assertEquals(List.of(), ClassSearch.filter(null, "Foo"), "null list");
     }
 
-    private static void testListsJavaAndSkipsBuildDir() throws Exception {
+    @Test
+    void testListsJavaAndSkipsBuildDir() throws Exception {
         Path root = Files.createTempDirectory("lide-class-search");
         try {
             Path src = root.resolve("src").resolve("lide");
@@ -81,20 +73,21 @@ public final class ClassSearchTest {
             Files.writeString(out.resolve("Foo.java"), "class Foo {}");
             List<ClassSearch.Hit> listed = ClassSearch.listClasses(root);
             List<String> names = listed.stream().map(ClassSearch.Hit::className).sorted().toList();
-            assertEqual("listed names", List.of("Foo", "FooTest"), names);
-            assertTrue("relative src", listed.stream().anyMatch(h -> h.relativePath().equals("src/lide/Foo.java")));
+            assertEquals(List.of("Foo", "FooTest"), names, "listed names");
+            assertTrue(listed.stream().anyMatch(h -> h.relativePath().equals("src/lide/Foo.java")), "relative src");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testIsClassFile() {
-        assertTrue("java", ClassSearch.isClassFile("Foo.java"));
-        assertTrue("js", ClassSearch.isClassFile("App.js"));
-        assertTrue("py", ClassSearch.isClassFile("app.py"));
-        assertTrue("md skipped", !ClassSearch.isClassFile("README.md"));
-        assertTrue("null", !ClassSearch.isClassFile(null));
-        assertEqual("stem", "Foo", ClassSearch.stem("Foo.java"));
+    @Test
+    void testIsClassFile() throws Exception {
+        assertTrue(ClassSearch.isClassFile("Foo.java"), "java");
+        assertTrue(ClassSearch.isClassFile("App.js"), "js");
+        assertTrue(ClassSearch.isClassFile("app.py"), "py");
+        assertTrue(!ClassSearch.isClassFile("README.md"), "md skipped");
+        assertTrue(!ClassSearch.isClassFile(null), "null");
+        assertEquals("Foo", ClassSearch.stem("Foo.java"), "stem");
     }
 
     private static void deleteRecursive(Path root) throws Exception {
@@ -109,24 +102,4 @@ public final class ClassSearchTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private ClassSearchTest() {
-    }
 }

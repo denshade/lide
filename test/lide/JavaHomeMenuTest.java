@@ -1,5 +1,11 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,52 +20,56 @@ import javax.swing.SwingUtilities;
  * Tests for the Java menu on the main window.
  */
 public final class JavaHomeMenuTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run Java menu tests");
-            return;
-        }
-        Path previousStorage = JavaHome.defaultStorageFile();
-        Path storage = Files.createTempFile("lide-javahome-menu-", ".txt");
-        try {
-            Files.deleteIfExists(storage);
-            JavaHome.useStorageFile(storage);
-            SwingUtilities.invokeAndWait(JavaHomeMenuTest::testMenuItemsWhenUnset);
-            testClearEnabledAfterSet();
-        } finally {
-            JavaHome.clear();
-            JavaHome.useStorageFile(previousStorage);
-            Files.deleteIfExists(storage);
-        }
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    private Path previousStorage;
+    private Path storage;
+
+    @BeforeEach
+    void useTempJavaHomeStorage() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(),
+                "headless environment cannot run Java menu tests");
+        previousStorage = JavaHome.defaultStorageFile();
+        storage = Files.createTempFile("lide-javahome-menu-", ".txt");
+        Files.deleteIfExists(storage);
+        JavaHome.useStorageFile(storage);
     }
 
-    private static void testMenuItemsWhenUnset() {
+    @AfterEach
+    void restoreJavaHomeStorage() throws Exception {
+        if (storage == null) {
+            return;
+        }
+        JavaHome.clear();
+        JavaHome.useStorageFile(previousStorage);
+        Files.deleteIfExists(storage);
+    }
+
+    @Test
+    void testMenuItemsWhenUnset() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testMenuItemsWhenUnset);
+            return;
+        }
         MainFrame frame = new MainFrame();
         try {
             JMenu java = findMenu(frame.getJMenuBar(), "Java");
-            assertTrue("Java menu exists", java != null);
+            assertTrue(java != null, "Java menu exists");
             frame.updateJavaHomeMenu();
             List<String> labels = itemLabels(java);
-            assertEqual("item count", 3, labels.size());
-            assertEqual("current", "JAVA_HOME: (not set)", labels.get(0));
-            assertEqual("set", "Set JAVA_HOME…", labels.get(1));
-            assertEqual("clear", "Clear JAVA_HOME", labels.get(2));
-            assertTrue("current disabled", !findMenuItem(java, "JAVA_HOME: (not set)").isEnabled());
-            assertTrue("set enabled", findMenuItem(java, "Set JAVA_HOME…").isEnabled());
-            assertTrue("clear disabled when unset", !findMenuItem(java, "Clear JAVA_HOME").isEnabled());
+            assertEquals(3, labels.size(), "item count");
+            assertEquals("JAVA_HOME: (not set)", labels.get(0), "current");
+            assertEquals("Set JAVA_HOME…", labels.get(1), "set");
+            assertEquals("Clear JAVA_HOME", labels.get(2), "clear");
+            assertTrue(!findMenuItem(java, "JAVA_HOME: (not set)").isEnabled(), "current disabled");
+            assertTrue(findMenuItem(java, "Set JAVA_HOME…").isEnabled(), "set enabled");
+            assertTrue(!findMenuItem(java, "Clear JAVA_HOME").isEnabled(), "clear disabled when unset");
         } finally {
             frame.dispose();
         }
     }
 
-    private static void testClearEnabledAfterSet() throws Exception {
+    @Test
+    void testClearEnabledAfterSet() throws Exception {
         Path jdk = Files.createTempDirectory("lide-javahome-menu-jdk");
         try {
             Files.createDirectories(jdk.resolve("bin"));
@@ -73,9 +83,9 @@ public final class JavaHomeMenuTest {
                     JMenu java = findMenu(frame.getJMenuBar(), "Java");
                     List<String> labels = itemLabels(java);
                     String expected = "JAVA_HOME: " + jdk.toAbsolutePath().normalize();
-                    assertEqual("current path", expected, labels.get(0));
-                    assertTrue("current still disabled", !findMenuItem(java, expected).isEnabled());
-                    assertTrue("clear enabled", findMenuItem(java, "Clear JAVA_HOME").isEnabled());
+                    assertEquals(expected, labels.get(0), "current path");
+                    assertTrue(!findMenuItem(java, expected).isEnabled(), "current still disabled");
+                    assertTrue(findMenuItem(java, "Clear JAVA_HOME").isEnabled(), "clear enabled");
                 } finally {
                     frame.dispose();
                 }
@@ -135,24 +145,4 @@ public final class JavaHomeMenuTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private JavaHomeMenuTest() {
-    }
 }

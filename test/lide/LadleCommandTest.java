@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.Assumptions;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -8,93 +13,78 @@ import java.util.List;
  * Tests for Ladle project detection and CLI command building.
  */
 public final class LadleCommandTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testUnavailableWhenNull();
-        testUnavailableWhenMissingJar();
-        testUnavailableWhenMissingIni();
-        testAvailableWhenJarAndIniPresent();
-        testCommandForBuild();
-        testCommandForTest();
-        testCommandForTestWithClassFilter();
-        testSupportsTestFilters();
-        testJarForTestFilterFallsBackWhenProjectJarIsOld();
-        testCommandForRequiresProject();
-        testCommandForRejectsBlank();
-        testDetectedJdkHomeHasJavacWhenPresent();
-        testProcessBuilderSetsJavaHome();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @Test
+    void testUnavailableWhenNull() throws Exception {
+        assertTrue(!LadleCommand.isAvailable(null), "null root");
+        assertTrue(LadleCommand.jarPath(null) == null, "null jar");
+        assertTrue(LadleCommand.iniPath(null) == null, "null ini");
     }
 
-    private static void testUnavailableWhenNull() {
-        assertTrue("null root", !LadleCommand.isAvailable(null));
-        assertTrue("null jar", LadleCommand.jarPath(null) == null);
-        assertTrue("null ini", LadleCommand.iniPath(null) == null);
-    }
-
-    private static void testUnavailableWhenMissingJar() throws Exception {
+    @Test
+    void testUnavailableWhenMissingJar() throws Exception {
         Path root = Files.createTempDirectory("lide-ladle-no-jar");
         try {
             Files.writeString(root.resolve("build.ini"), "[javac]\n");
-            assertTrue("no jar", !LadleCommand.isAvailable(root));
+            assertTrue(!LadleCommand.isAvailable(root), "no jar");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testUnavailableWhenMissingIni() throws Exception {
+    @Test
+    void testUnavailableWhenMissingIni() throws Exception {
         Path root = Files.createTempDirectory("lide-ladle-no-ini");
         try {
             Files.createDirectories(root.resolve("lib"));
             Files.writeString(root.resolve("lib").resolve("ladle.jar"), "fake");
-            assertTrue("no ini", !LadleCommand.isAvailable(root));
+            assertTrue(!LadleCommand.isAvailable(root), "no ini");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testAvailableWhenJarAndIniPresent() throws Exception {
+    @Test
+    void testAvailableWhenJarAndIniPresent() throws Exception {
         Path root = fakeLadleProject();
         try {
-            assertTrue("available", LadleCommand.isAvailable(root));
-            assertTrue("jar path", LadleCommand.jarPath(root).endsWith(Path.of("lib", "ladle.jar")));
-            assertTrue("ini path", LadleCommand.iniPath(root).endsWith(Path.of("build.ini")));
+            assertTrue(LadleCommand.isAvailable(root), "available");
+            assertTrue(LadleCommand.jarPath(root).endsWith(Path.of("lib", "ladle.jar")), "jar path");
+            assertTrue(LadleCommand.iniPath(root).endsWith(Path.of("build.ini")), "ini path");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCommandForBuild() throws Exception {
+    @Test
+    void testCommandForBuild() throws Exception {
         Path root = fakeLadleProject();
         try {
             List<String> cmd = LadleCommand.commandFor(root, LadleCommand.BUILD);
-            assertTrue("java", cmd.get(0).toLowerCase().contains("java"));
-            assertEqual("-jar", "-jar", cmd.get(1));
-            assertTrue("ladle.jar", cmd.get(2).replace('\\', '/').endsWith("lib/ladle.jar"));
-            assertEqual("command", "build", cmd.get(3));
-            assertEqual("ini", "build.ini", cmd.get(4));
-            assertEqual("size", 5, cmd.size());
+            assertTrue(cmd.get(0).toLowerCase().contains("java"), "java");
+            assertEquals("-jar", cmd.get(1), "-jar");
+            assertTrue(cmd.get(2).replace('\\', '/').endsWith("lib/ladle.jar"), "ladle.jar");
+            assertEquals("build", cmd.get(3), "command");
+            assertEquals("build.ini", cmd.get(4), "ini");
+            assertEquals(5, cmd.size(), "size");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCommandForTest() throws Exception {
+    @Test
+    void testCommandForTest() throws Exception {
         Path root = fakeLadleProject();
         try {
             List<String> cmd = LadleCommand.commandFor(root, LadleCommand.TEST);
-            assertEqual("command", "test", cmd.get(3));
+            assertEquals("test", cmd.get(3), "command");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCommandForTestWithClassFilter() throws Exception {
+    @Test
+    void testCommandForTestWithClassFilter() throws Exception {
         Path root = fakeLadleProject();
         try {
             Path projectJar = writeLadleClassJar(
@@ -103,19 +93,20 @@ public final class LadleCommandTest {
             Path testFile = root.resolve("test").resolve("FooTest.java");
             List<String> cmd = LadleCommand.commandFor(
                     root, LadleCommand.TEST, testFile.toString());
-            assertEqual("uses project jar", projectJar.toString(), cmd.get(2));
-            assertEqual("command", "test", cmd.get(3));
-            assertEqual("ini", "build.ini", cmd.get(4));
-            assertEqual("filter", testFile.toString(), cmd.get(5));
-            assertEqual("size", 6, cmd.size());
+            assertEquals(projectJar.toString(), cmd.get(2), "uses project jar");
+            assertEquals("test", cmd.get(3), "command");
+            assertEquals("build.ini", cmd.get(4), "ini");
+            assertEquals(testFile.toString(), cmd.get(5), "filter");
+            assertEquals(6, cmd.size(), "size");
             List<String> skippedBlank = LadleCommand.commandFor(root, LadleCommand.TEST, "  ", null);
-            assertEqual("blank extras ignored", 5, skippedBlank.size());
+            assertEquals(5, skippedBlank.size(), "blank extras ignored");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testSupportsTestFilters() throws Exception {
+    @Test
+    void testSupportsTestFilters() throws Exception {
         Path dir = Files.createTempDirectory("lide-filter-detect");
         try {
             Path neu = writeLadleClassJar(
@@ -124,12 +115,12 @@ public final class LadleCommandTest {
             Path old = writeLadleClassJar(
                     dir.resolve("old.jar"),
                     "ladle test [<ini-file>]        Run unit tests");
-            assertTrue("new jar", LadleCommand.supportsTestFilters(neu));
-            assertTrue("old jar", !LadleCommand.supportsTestFilters(old));
-            assertTrue("missing", !LadleCommand.supportsTestFilters(dir.resolve("missing.jar")));
+            assertTrue(LadleCommand.supportsTestFilters(neu), "new jar");
+            assertTrue(!LadleCommand.supportsTestFilters(old), "old jar");
+            assertTrue(!LadleCommand.supportsTestFilters(dir.resolve("missing.jar")), "missing");
             Path project = fakeLadleProject();
             try {
-                assertTrue("text fake jar", !LadleCommand.supportsTestFilters(LadleCommand.jarPath(project)));
+                assertTrue(!LadleCommand.supportsTestFilters(LadleCommand.jarPath(project)), "text fake jar");
             } finally {
                 deleteRecursive(project);
             }
@@ -138,81 +129,66 @@ public final class LadleCommandTest {
         }
     }
 
-    private static void testJarForTestFilterFallsBackWhenProjectJarIsOld() throws Exception {
+    @Test
+    void testJarForTestFilterFallsBackWhenProjectJarIsOld() throws Exception {
         Path root = fakeLadleProject();
         Path fallbackDir = Files.createTempDirectory("lide-filter-fallback");
         try {
             writeLadleClassJar(
                     root.resolve("lib").resolve("ladle.jar"),
                     "ladle test [<ini-file>]        Run unit tests");
-            assertTrue("old project has no filter",
-                    LadleCommand.jarForTestFilter(root, List.of()) == null);
+            assertTrue(LadleCommand.jarForTestFilter(root, List.of()) == null, "old project has no filter");
             Path fallback = writeLadleClassJar(
                     fallbackDir.resolve("ladle.jar"),
                     "ladle test [<ini-file>] [<class>...]");
             Path used = LadleCommand.jarForTestFilter(root, List.of(fallback));
-            assertEqual("fallback jar", fallback.toAbsolutePath().normalize(), used);
+            assertEquals(fallback.toAbsolutePath().normalize(), used, "fallback jar");
             List<String> cmd = LadleCommand.commandFor(
                     root, LadleCommand.TEST, "FooTest");
-            assertTrue("run-test uses a capable jar",
-                    LadleCommand.supportsTestFilters(Path.of(cmd.get(2))));
-            assertEqual("keeps class filter", "FooTest", cmd.get(5));
+            assertTrue(LadleCommand.supportsTestFilters(Path.of(cmd.get(2))), "run-test uses a capable jar");
+            assertEquals("FooTest", cmd.get(5), "keeps class filter");
         } finally {
             deleteRecursive(root);
             deleteRecursive(fallbackDir);
         }
     }
 
-    private static void testCommandForRequiresProject() {
-        try {
-            LadleCommand.commandFor(null, LadleCommand.BUILD);
-            failed++;
-            System.err.println("FAIL expected IllegalStateException for null project");
-        } catch (IllegalStateException ex) {
-            passed++;
-            assertTrue("message mentions ladle.jar", ex.getMessage().contains("ladle.jar"));
-        }
+    @Test
+    void testCommandForRequiresProject() throws Exception {
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> LadleCommand.commandFor(null, LadleCommand.BUILD));
+        assertTrue(ex.getMessage().contains("ladle.jar"), "message mentions ladle.jar");
     }
 
-    private static void testCommandForRejectsBlank() throws Exception {
+    @Test
+    void testCommandForRejectsBlank() throws Exception {
         Path root = fakeLadleProject();
         try {
-            try {
-                LadleCommand.commandFor(root, "  ");
-                failed++;
-                System.err.println("FAIL expected IllegalArgumentException for blank command");
-            } catch (IllegalArgumentException ex) {
-                passed++;
-            }
+            assertThrows(IllegalArgumentException.class, () -> LadleCommand.commandFor(root, "  "));
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testDetectedJdkHomeHasJavacWhenPresent() {
+    @Test
+    void testDetectedJdkHomeHasJavacWhenPresent() throws Exception {
         String home = LadleCommand.detectedJdkHome();
-        if (home == null) {
-            System.out.println("SKIP detected JDK (no javac next to java.home)");
-            return;
-        }
+        Assumptions.assumeTrue(home != null, "SKIP detected JDK (no javac next to java.home)");
         String exe = ScriptCommand.isWindows() ? "javac.exe" : "javac";
-        assertTrue("detected javac", Files.isRegularFile(Path.of(home).resolve("bin").resolve(exe)));
-        assertTrue("not using $JAVA_HOME placeholder", !home.contains("$"));
+        assertTrue(Files.isRegularFile(Path.of(home).resolve("bin").resolve(exe)), "detected javac");
+        assertTrue(!home.contains("$"), "not using $JAVA_HOME placeholder");
     }
 
-    private static void testProcessBuilderSetsJavaHome() throws Exception {
+    @Test
+    void testProcessBuilderSetsJavaHome() throws Exception {
         Path root = fakeLadleProject();
         try {
             ProcessBuilder builder = LadleCommand.processBuilder(root, LadleCommand.BUILD);
-            assertEqual("cwd", root.toAbsolutePath().normalize().toFile(), builder.directory());
+            assertEquals(root.toAbsolutePath().normalize().toFile(), builder.directory(), "cwd");
             String detected = LadleCommand.detectedJdkHome();
-            if (detected == null) {
-                System.out.println("SKIP JAVA_HOME env (no JDK detected)");
-                return;
-            }
+            Assumptions.assumeTrue(detected != null, "SKIP JAVA_HOME env (no JDK detected)");
             String home = builder.environment().get("JAVA_HOME");
-            assertTrue("JAVA_HOME set", home != null && !home.isBlank());
-            assertTrue("JAVA_HOME is a JDK", LadleCommand.isJdkHome(home));
+            assertTrue(home != null && !home.isBlank(), "JAVA_HOME set");
+            assertTrue(LadleCommand.isJdkHome(home), "JAVA_HOME is a JDK");
         } finally {
             deleteRecursive(root);
         }
@@ -248,24 +224,4 @@ public final class LadleCommandTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private LadleCommandTest() {
-    }
 }

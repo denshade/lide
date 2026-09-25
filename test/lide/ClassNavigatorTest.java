@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import org.junit.jupiter.api.Assumptions;
 import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,44 +18,26 @@ import javax.swing.SwingUtilities;
  * Tests for Ctrl+click class navigation resolution.
  */
 public final class ClassNavigatorTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testIdentifierAt();
-        testIsNavigableClassName();
-        testParseImports();
-        testFindDeclarationOffset();
-        testResolveSamePackageFile();
-        testResolveViaImport();
-        testResolveWithCrlfSourceAndDeclaration();
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run Ctrl+click UI tests");
-        } else {
-            SwingUtilities.invokeAndWait(ClassNavigatorTest::testCtrlClickIconGeneratorWithCrlf);
-        }
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testIdentifierAt() {
+    @Test
+    void testIdentifierAt() throws Exception {
         String text = "CodeEditor editor = new CodeEditor();";
         int offset = text.indexOf("CodeEditor");
-        assertEqual("identifier", "CodeEditor", ClassNavigator.identifierAt(text, offset + 3));
-        assertEqual("middle of word", "editor", ClassNavigator.identifierAt(text, text.indexOf("editor") + 2));
-        assertNull("non-ident", ClassNavigator.identifierAt(text, text.indexOf('=')));
+        assertEquals("CodeEditor", ClassNavigator.identifierAt(text, offset + 3), "identifier");
+        assertEquals("editor", ClassNavigator.identifierAt(text, text.indexOf("editor") + 2), "middle of word");
+        assertNull(ClassNavigator.identifierAt(text, text.indexOf('=')), "non-ident");
     }
 
-    private static void testIsNavigableClassName() {
-        assertTrue("Java type", ClassNavigator.isNavigableClassName("CodeEditor", Language.JAVA));
-        assertTrue("known type", ClassNavigator.isNavigableClassName("String", Language.JAVA));
-        assertTrue("not keyword", !ClassNavigator.isNavigableClassName("class", Language.JAVA));
-        assertTrue("lowercase method", !ClassNavigator.isNavigableClassName("openFile", Language.JAVA));
+    @Test
+    void testIsNavigableClassName() throws Exception {
+        assertTrue(ClassNavigator.isNavigableClassName("CodeEditor", Language.JAVA), "Java type");
+        assertTrue(ClassNavigator.isNavigableClassName("String", Language.JAVA), "known type");
+        assertTrue(!ClassNavigator.isNavigableClassName("class", Language.JAVA), "not keyword");
+        assertTrue(!ClassNavigator.isNavigableClassName("openFile", Language.JAVA), "lowercase method");
     }
 
-    private static void testParseImports() {
+    @Test
+    void testParseImports() throws Exception {
         String src = """
                 package lide;
                 import java.util.List;
@@ -58,23 +45,24 @@ public final class ClassNavigatorTest {
                 import static java.util.Objects.requireNonNull;
                 """;
         Map<String, String> imports = ClassNavigator.parseJavaImports(src);
-        assertEqual("List", "java.util.List", imports.get("List"));
-        assertEqual("JFrame", "javax.swing.JFrame", imports.get("JFrame"));
-        assertEqual("requireNonNull", "java.util.Objects.requireNonNull",
-                imports.get("requireNonNull"));
+        assertEquals("java.util.List", imports.get("List"), "List");
+        assertEquals("javax.swing.JFrame", imports.get("JFrame"), "JFrame");
+        assertEquals("java.util.Objects.requireNonNull", imports.get("requireNonNull"), "requireNonNull");
     }
 
-    private static void testFindDeclarationOffset() {
+    @Test
+    void testFindDeclarationOffset() throws Exception {
         String src = """
                 package lide;
                 public final class CodeEditor {
                 }
                 """;
         int offset = ClassNavigator.findDeclarationOffset(src, "CodeEditor", Language.JAVA);
-        assertEqual("decl offset", src.indexOf("CodeEditor"), offset);
+        assertEquals(src.indexOf("CodeEditor"), offset, "decl offset");
     }
 
-    private static void testResolveSamePackageFile() throws Exception {
+    @Test
+    void testResolveSamePackageFile() throws Exception {
         Path root = Files.createTempDirectory("lide-nav");
         try {
             Path pkg = root.resolve("src").resolve("lide");
@@ -92,16 +80,16 @@ public final class ClassNavigatorTest {
             int offset = mainSrc.indexOf("CodeEditor");
             Optional<ClassNavigator.Target> target = ClassNavigator.resolve(
                     root, main, mainSrc, Language.JAVA, offset);
-            assertTrue("resolved", target.isPresent());
-            assertEqual("path", editor.toAbsolutePath().normalize(), target.get().path());
-            assertEqual("caret", Files.readString(editor).indexOf("CodeEditor"),
-                    target.get().caretOffset());
+            assertTrue(target.isPresent(), "resolved");
+            assertEquals(editor.toAbsolutePath().normalize(), target.get().path(), "path");
+            assertEquals(Files.readString(editor).indexOf("CodeEditor"), target.get().caretOffset(), "caret");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testResolveViaImport() throws Exception {
+    @Test
+    void testResolveViaImport() throws Exception {
         Path root = Files.createTempDirectory("lide-nav-imp");
         try {
             Path pkg = root.resolve("src").resolve("other");
@@ -118,14 +106,15 @@ public final class ClassNavigatorTest {
             Files.writeString(current, src);
             Optional<ClassNavigator.Target> target = ClassNavigator.resolve(
                     root, current, src, Language.JAVA, src.indexOf("Helper h"));
-            assertTrue("import resolve", target.isPresent());
-            assertEqual("helper path", helper.toAbsolutePath().normalize(), target.get().path());
+            assertTrue(target.isPresent(), "import resolve");
+            assertEquals(helper.toAbsolutePath().normalize(), target.get().path(), "helper path");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testResolveWithCrlfSourceAndDeclaration() throws Exception {
+    @Test
+    void testResolveWithCrlfSourceAndDeclaration() throws Exception {
         Path root = Files.createTempDirectory("lide-nav-crlf");
         try {
             Path pkg = root.resolve("src").resolve("lide");
@@ -156,20 +145,14 @@ public final class ClassNavigatorTest {
             int offset = appDoc.indexOf("IconGenerator");
             Optional<ClassNavigator.Target> target = ClassNavigator.resolve(
                     root, app, appDoc, Language.JAVA, offset);
-            assertTrue("crlf resolved", target.isPresent());
-            assertEqual("crlf path", icon.toAbsolutePath().normalize(), target.get().path());
+            assertTrue(target.isPresent(), "crlf resolved");
+            assertEquals(icon.toAbsolutePath().normalize(), target.get().path(), "crlf path");
 
             String iconDoc = iconSrc.replace("\r\n", "\n");
-            assertEqual(
-                    "crlf caret on class name",
-                    iconDoc.indexOf("IconGenerator"),
-                    target.get().caretOffset());
-            assertEqual(
-                    "caret text",
-                    "IconGenerator",
-                    iconDoc.substring(
+            assertEquals(iconDoc.indexOf("IconGenerator"), target.get().caretOffset(), "crlf caret on class name");
+            assertEquals("IconGenerator", iconDoc.substring(
                             target.get().caretOffset(),
-                            target.get().caretOffset() + "IconGenerator".length()));
+                            target.get().caretOffset() + "IconGenerator".length()), "caret text");
         } finally {
             deleteRecursive(root);
         }
@@ -179,7 +162,13 @@ public final class ClassNavigatorTest {
      * JTextPane.getText() rewrites newlines to platform CRLF while viewToModel offsets
      * stay in the LF document model — Ctrl+click must use document text.
      */
-    private static void testCtrlClickIconGeneratorWithCrlf() {
+    @Test
+    void testCtrlClickIconGeneratorWithCrlf() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testCtrlClickIconGeneratorWithCrlf);
+            return;
+        }
         Path created = null;
         JFrame frame = new JFrame("Ctrl+click CRLF test");
         try {
@@ -204,46 +193,34 @@ public final class ClassNavigatorTest {
 
             pane.openFile(app);
             CodeEditor editor = pane.getActiveEditor();
-            assertTrue("editor open", editor != null);
+            assertTrue(editor != null, "editor open");
 
             String rewritten = editor.getText();
             String doc = editor.getDocumentText();
-            assertTrue("document text is LF-only", !doc.contains("\r"));
-            assertTrue("getText rewrites EOL", rewritten.contains("\r"));
-            assertTrue("getText longer than document", rewritten.length() > doc.length());
+            assertTrue(!doc.contains("\r"), "document text is LF-only");
+            assertTrue(rewritten.contains("\r"), "getText rewrites EOL");
+            assertTrue(rewritten.length() > doc.length(), "getText longer than document");
 
             int docOffset = doc.indexOf("IconGenerator");
-            assertTrue("IconGenerator in doc", docOffset >= 0);
+            assertTrue(docOffset >= 0, "IconGenerator in doc");
 
             // Same numeric offset against rewritten getText() is wrong (the old bug).
             String wrongWord = ClassNavigator.identifierAt(rewritten, docOffset);
-            assertTrue(
-                    "getText+docOffset is not IconGenerator",
-                    !"IconGenerator".equals(wrongWord));
+            assertTrue(!"IconGenerator".equals(wrongWord), "getText+docOffset is not IconGenerator");
 
             Optional<ClassNavigator.Target> target = ClassNavigator.resolve(
                     root, app, doc, Language.JAVA, docOffset);
-            assertTrue("doc-offset resolve", target.isPresent());
-            assertEqual("doc path", icon.toAbsolutePath().normalize(), target.get().path());
+            assertTrue(target.isPresent(), "doc-offset resolve");
+            assertEquals(icon.toAbsolutePath().normalize(), target.get().path(), "doc path");
 
             pane.navigateTo(target.get());
             CodeEditor active = pane.getActiveEditor();
-            assertTrue("navigated editor", active != null);
-            assertEqual(
-                    "opened IconGenerator",
-                    icon.toAbsolutePath().normalize(),
-                    active.getFilePath());
+            assertTrue(active != null, "navigated editor");
+            assertEquals(icon.toAbsolutePath().normalize(), active.getFilePath(), "opened IconGenerator");
             String opened = active.getDocumentText();
-            assertEqual(
-                    "caret on class name",
-                    "IconGenerator",
-                    opened.substring(
+            assertEquals("IconGenerator", opened.substring(
                             active.getCaretPosition(),
-                            active.getCaretPosition() + "IconGenerator".length()));
-        } catch (Exception ex) {
-            failed++;
-            System.err.println("FAIL ctrl-click crlf UI: " + ex);
-            ex.printStackTrace(System.err);
+                            active.getCaretPosition() + "IconGenerator".length()), "caret on class name");
         } finally {
             frame.dispose();
             if (created != null) {
@@ -268,28 +245,4 @@ public final class ClassNavigatorTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private static void assertNull(String label, Object actual) {
-        assertEqual(label, null, actual);
-    }
-
-    private ClassNavigatorTest() {
-    }
 }

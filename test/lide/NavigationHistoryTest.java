@@ -1,5 +1,8 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -7,27 +10,13 @@ import java.util.List;
  * Tests for in-session file navigation history.
  */
 public final class NavigationHistoryTest {
-    private static int passed;
-    private static int failed;
-
-    public static void main(String[] args) {
-        testVisitRecordsAndIgnoresConsecutiveDuplicates();
-        testBackAndForward();
-        testVisitAfterBackDropsForward();
-        testRespectsLimit();
-        testRemapRenamedFile();
-        testBackAtStartIsNoOp();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
 
     private static Path path(String name) {
         return Path.of("C:/projects/" + name).toAbsolutePath().normalize();
     }
 
-    private static void testVisitRecordsAndIgnoresConsecutiveDuplicates() {
+    @Test
+    void testVisitRecordsAndIgnoresConsecutiveDuplicates() throws Exception {
         NavigationHistory history = new NavigationHistory();
         Path a = path("a.txt");
         Path b = path("b.txt");
@@ -35,14 +24,15 @@ public final class NavigationHistoryTest {
         history.visit(a);
         history.visit(b);
         history.visit(b);
-        assertEqual("entries", List.of(a, b), history.entries());
-        assertEqual("current", b, history.current());
-        assertEqual("index", 1, history.index());
-        assertTrue("can go back", history.canGoBack());
-        assertTrue("cannot go forward", !history.canGoForward());
+        assertEquals(List.of(a, b), history.entries(), "entries");
+        assertEquals(b, history.current(), "current");
+        assertEquals(1, history.index(), "index");
+        assertTrue(history.canGoBack(), "can go back");
+        assertTrue(!history.canGoForward(), "cannot go forward");
     }
 
-    private static void testBackAndForward() {
+    @Test
+    void testBackAndForward() throws Exception {
         NavigationHistory history = new NavigationHistory();
         Path a = path("a.txt");
         Path b = path("b.txt");
@@ -50,18 +40,19 @@ public final class NavigationHistoryTest {
         history.visit(a);
         history.visit(b);
         history.visit(c);
-        assertEqual("back to b", b, history.back());
-        assertEqual("current after back", b, history.current());
-        assertTrue("can go back from b", history.canGoBack());
-        assertTrue("can go forward from b", history.canGoForward());
-        assertEqual("back to a", a, history.back());
-        assertTrue("cannot go back from a", !history.canGoBack());
-        assertEqual("forward to b", b, history.forward());
-        assertEqual("forward to c", c, history.forward());
-        assertTrue("cannot go forward from c", !history.canGoForward());
+        assertEquals(b, history.back(), "back to b");
+        assertEquals(b, history.current(), "current after back");
+        assertTrue(history.canGoBack(), "can go back from b");
+        assertTrue(history.canGoForward(), "can go forward from b");
+        assertEquals(a, history.back(), "back to a");
+        assertTrue(!history.canGoBack(), "cannot go back from a");
+        assertEquals(b, history.forward(), "forward to b");
+        assertEquals(c, history.forward(), "forward to c");
+        assertTrue(!history.canGoForward(), "cannot go forward from c");
     }
 
-    private static void testVisitAfterBackDropsForward() {
+    @Test
+    void testVisitAfterBackDropsForward() throws Exception {
         NavigationHistory history = new NavigationHistory();
         Path a = path("a.txt");
         Path b = path("b.txt");
@@ -70,13 +61,14 @@ public final class NavigationHistoryTest {
         history.visit(b);
         history.back();
         history.visit(c);
-        assertEqual("forward dropped", List.of(a, c), history.entries());
-        assertEqual("current", c, history.current());
-        assertTrue("cannot go forward", !history.canGoForward());
-        assertEqual("back to a", a, history.back());
+        assertEquals(List.of(a, c), history.entries(), "forward dropped");
+        assertEquals(c, history.current(), "current");
+        assertTrue(!history.canGoForward(), "cannot go forward");
+        assertEquals(a, history.back(), "back to a");
     }
 
-    private static void testRespectsLimit() {
+    @Test
+    void testRespectsLimit() throws Exception {
         NavigationHistory history = new NavigationHistory(2);
         Path a = path("a.txt");
         Path b = path("b.txt");
@@ -84,13 +76,14 @@ public final class NavigationHistoryTest {
         history.visit(a);
         history.visit(b);
         history.visit(c);
-        assertEqual("limit", List.of(b, c), history.entries());
-        assertEqual("index", 1, history.index());
-        assertEqual("back", b, history.back());
-        assertTrue("cannot go further back", !history.canGoBack());
+        assertEquals(List.of(b, c), history.entries(), "limit");
+        assertEquals(1, history.index(), "index");
+        assertEquals(b, history.back(), "back");
+        assertTrue(!history.canGoBack(), "cannot go further back");
     }
 
-    private static void testRemapRenamedFile() {
+    @Test
+    void testRemapRenamedFile() throws Exception {
         NavigationHistory history = new NavigationHistory();
         Path a = path("a.txt");
         Path b = path("b.txt");
@@ -98,41 +91,22 @@ public final class NavigationHistoryTest {
         history.visit(a);
         history.visit(b);
         history.remap(a, renamed);
-        assertEqual("remapped", List.of(renamed, b), history.entries());
-        assertEqual("current still b", b, history.current());
-        assertEqual("back to renamed", renamed, history.back());
+        assertEquals(List.of(renamed, b), history.entries(), "remapped");
+        assertEquals(b, history.current(), "current still b");
+        assertEquals(renamed, history.back(), "back to renamed");
     }
 
-    private static void testBackAtStartIsNoOp() {
+    @Test
+    void testBackAtStartIsNoOp() throws Exception {
         NavigationHistory history = new NavigationHistory();
-        assertTrue("empty cannot go back", !history.canGoBack());
-        assertTrue("empty cannot go forward", !history.canGoForward());
-        assertEqual("back empty", null, history.back());
-        assertEqual("forward empty", null, history.forward());
+        assertTrue(!history.canGoBack(), "empty cannot go back");
+        assertTrue(!history.canGoForward(), "empty cannot go forward");
+        assertEquals(null, history.back(), "back empty");
+        assertEquals(null, history.forward(), "forward empty");
         history.visit(path("a.txt"));
-        assertTrue("single cannot go back", !history.canGoBack());
-        assertEqual("back single", null, history.back());
-        assertEqual("still at a", path("a.txt"), history.current());
+        assertTrue(!history.canGoBack(), "single cannot go back");
+        assertEquals(null, history.back(), "back single");
+        assertEquals(path("a.txt"), history.current(), "still at a");
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private NavigationHistoryTest() {
-    }
 }
