@@ -72,7 +72,9 @@ public final class MainFrame extends JFrame {
         projectTree.setOpenFileHandler(editors::openFile);
         projectTree.setNewFileHandler(this::promptNewFile);
         projectTree.setRenameHandler(this::promptRename);
+        projectTree.setDeleteHandler(this::promptDelete);
         projectTree.setRunTestHandler(this::runSingleTest);
+        projectTree.setActiveFileSupplier(editors::getActiveFilePath);
         editors.setStatusUpdater(this::updateStatus);
         editors.setNavigationListener(this::updateNavigateMenu);
         editors.setProjectRootSupplier(projectTree::getProjectRoot);
@@ -1083,8 +1085,62 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    void promptDelete(Path path) {
+        if (path == null || projectTree.isProjectRoot(path) || Files.isDirectory(path)) {
+            return;
+        }
+        String name = path.getFileName() != null ? path.getFileName().toString() : path.toString();
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Delete " + name + "?",
+                "Delete",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+        deletePath(path);
+    }
+
+    /**
+     * Deletes a file from disk, closes its editor tab without saving, and
+     * refreshes the tree. Folders are left unchanged.
+     */
+    Path deletePath(Path source) {
+        if (source == null || projectTree.isProjectRoot(source)) {
+            return null;
+        }
+        try {
+            Path from = source.toAbsolutePath().normalize();
+            if (Files.isDirectory(from)) {
+                return null;
+            }
+            FileDelete.delete(from);
+            editors.closeOpenFile(from);
+            Path parent = from.getParent();
+            if (parent != null) {
+                projectTree.refreshDirectory(parent);
+            }
+            scriptsPanel.refresh();
+            updateStatus();
+            return from;
+        } catch (IllegalArgumentException | IOException ex) {
+            AppLog.exception("Could not delete", ex);
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Could not delete:\n" + ex.getMessage(),
+                    "Delete",
+                    JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+    }
+
     EditorTabPane editorTabs() {
         return editors;
+    }
+
+    ProjectTreePanel projectTree() {
+        return projectTree;
     }
 
     private void openDirectory() {

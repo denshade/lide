@@ -698,6 +698,32 @@ public final class EditorTabPane extends JPanel {
         statusUpdater.run();
     }
 
+    /**
+     * Closes the editor or binary tab for {@code path} and discards unsaved
+     * edits. Used after the file has been deleted from disk.
+     */
+    void closeOpenFile(Path path) {
+        if (path == null) {
+            return;
+        }
+        Path normalized = path.toAbsolutePath().normalize();
+        CodeEditor editor = openEditors.remove(normalized);
+        BinaryViewer viewer = openBinary.remove(normalized);
+        if (editor == null && viewer == null) {
+            return;
+        }
+        if (editor != null) {
+            tabs.remove(editor);
+        }
+        if (viewer != null) {
+            tabs.remove(viewer);
+        }
+        if (tabs.getTabCount() == 0) {
+            showEmpty();
+        }
+        statusUpdater.run();
+    }
+
     private void updateTabTitle(Component component, String title) {
         int index = tabs.indexOfComponent(component);
         if (index < 0) {

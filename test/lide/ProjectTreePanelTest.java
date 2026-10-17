@@ -42,8 +42,14 @@ public final class ProjectTreePanelTest {
         assertEquals("Refresh", refresh.getToolTipText(), "tooltip");
         assertEquals(ProjectTreePanel.RefreshIcon.SIZE, refresh.getIcon().getIconWidth(), "icon width");
         assertTrue(!refresh.isEnabled(), "disabled without project");
+        JButton select = tree.getSelectButton();
+        assertEquals("Select", select.getText(), "select label");
+        assertEquals("Select the open file in the project tree", select.getToolTipText(), "select tooltip");
+        assertTrue(!select.isEnabled(), "select disabled without project");
         tree.refresh();
         assertTrue(tree.getProjectRoot() == null, "still no project");
+        select.doClick();
+        assertTrue(tree.getSelectedPath() == null, "select without a project does nothing");
     }
 
     @Test
@@ -81,6 +87,7 @@ public final class ProjectTreePanelTest {
                 ProjectTreePanel tree = new ProjectTreePanel();
                 tree.openDirectory(root);
                 assertTrue(tree.getRefreshButton().isEnabled(), "enabled with project");
+                assertTrue(tree.getSelectButton().isEnabled(), "select enabled with project");
             });
         } finally {
             deleteRecursive(root);
@@ -101,6 +108,92 @@ public final class ProjectTreePanelTest {
             SwingUtilities.invokeAndWait(() -> tree.getRefreshButton().doClick());
             assertTrue(waitForChild(tree, "second.txt", 5000), "second.txt after refresh");
             assertTrue(tree.rootChildNames().contains("first.txt"), "first.txt still there");
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    @Test
+    void testSelectsOpenFileInNestedFolder() throws Exception {
+        Path root = Files.createTempDirectory("lide-tree-select-nested");
+        try {
+            Path file = root.resolve("src").resolve("lide").resolve("Hello.java");
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, "class Hello {}");
+            Path sibling = root.resolve("README.md");
+            Files.writeString(sibling, "hi");
+            ProjectTreePanel tree = new ProjectTreePanel();
+            SwingUtilities.invokeAndWait(() -> {
+                tree.openDirectory(root);
+                tree.setActiveFileSupplier(() -> file);
+                tree.getSelectButton().doClick();
+            });
+            assertTrue(waitForSelection(tree, file, 5000), "nested file selected");
+            int[] row = {-1};
+            SwingUtilities.invokeAndWait(() -> row[0] = tree.getSelectedRow());
+            assertTrue(row[0] >= 0, "selected row is expanded into view");
+
+            SwingUtilities.invokeAndWait(() -> {
+                tree.setActiveFileSupplier(() -> root.getParent().resolve("outside.txt"));
+                tree.getSelectButton().doClick();
+            });
+            assertEquals(file.toAbsolutePath().normalize(), selectedPath(tree), "outside file leaves selection");
+
+            SwingUtilities.invokeAndWait(() -> {
+                tree.setActiveFileSupplier(() -> null);
+                tree.getSelectButton().doClick();
+            });
+            assertEquals(file.toAbsolutePath().normalize(), selectedPath(tree), "no editor file leaves selection");
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    @Test
+    void testSelectIgnoresSkippedFolder() throws Exception {
+        Path root = Files.createTempDirectory("lide-tree-select-skip");
+        try {
+            Path visible = root.resolve("README.md");
+            Files.writeString(visible, "hi");
+            Path hidden = root.resolve("out").resolve("skip.txt");
+            Files.createDirectories(hidden.getParent());
+            Files.writeString(hidden, "nope");
+            ProjectTreePanel tree = new ProjectTreePanel();
+            SwingUtilities.invokeAndWait(() -> {
+                tree.openDirectory(root);
+                tree.setActiveFileSupplier(() -> visible);
+                tree.getSelectButton().doClick();
+            });
+            assertTrue(waitForSelection(tree, visible, 5000), "visible file selected");
+            SwingUtilities.invokeAndWait(() -> {
+                tree.setActiveFileSupplier(() -> hidden);
+                tree.getSelectButton().doClick();
+            });
+            assertEquals(visible.toAbsolutePath().normalize(), selectedPath(tree), "skipped folder not selected");
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    @Test
+    void testSelectButtonUsesEditorFile() throws Exception {
+        Path root = Files.createTempDirectory("lide-tree-select-editor");
+        try {
+            Path file = root.resolve("src").resolve("App.java");
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, "class App {}");
+            MainFrame[] frame = new MainFrame[1];
+            SwingUtilities.invokeAndWait(() -> {
+                frame[0] = new MainFrame();
+                frame[0].applyProjectDirectory(root);
+                frame[0].editorTabs().openFile(file);
+                frame[0].projectTree().getSelectButton().doClick();
+            });
+            try {
+                assertTrue(waitForSelection(frame[0].projectTree(), file, 5000), "editor file selected");
+            } finally {
+                SwingUtilities.invokeAndWait(() -> frame[0].dispose());
+            }
         } finally {
             deleteRecursive(root);
         }
@@ -221,6 +314,26 @@ public final class ProjectTreePanelTest {
             g.dispose();
         }
         return image;
+    }
+
+    private static Path selectedPath(ProjectTreePanel tree) throws Exception {
+        Path[] path = new Path[1];
+        SwingUtilities.invokeAndWait(() -> path[0] = tree.getSelectedPath());
+        return path[0];
+    }
+
+    private static boolean waitForSelection(ProjectTreePanel tree, Path expected, long timeoutMs)
+            throws Exception {
+        Path target = expected.toAbsolutePath().normalize();
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (target.equals(selectedPath(tree))) {
+                return true;
+            }
+            Thread.sleep(50);
+        }
+        System.err.println("timed out waiting to select " + target + " but had " + selectedPath(tree));
+        return false;
     }
 
     private static boolean waitForChild(ProjectTreePanel tree, String name, long timeoutMs)

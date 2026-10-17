@@ -20,11 +20,14 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -54,6 +57,7 @@ public final class ProjectTreePanel extends JPanel {
     private final DefaultTreeModel model;
     private final DefaultMutableTreeNode rootNode;
     private final JButton refreshButton = new JButton(new RefreshIcon());
+    private final JButton selectButton = new JButton("Select");
     private final JLabel titleLabel = new JLabel("Project");
     private Consumer<Path> openFileHandler = path -> {
     };
@@ -61,11 +65,18 @@ public final class ProjectTreePanel extends JPanel {
     };
     private Consumer<Path> renameHandler = path -> {
     };
+    private Consumer<Path> deleteHandler = path -> {
+    };
     private Consumer<Path> copyPathHandler = PathClipboard::copy;
     private Consumer<Path> runTestHandler = path -> {
     };
+    private Supplier<Path> activeFileSupplier = () -> null;
+    private final Map<DefaultMutableTreeNode, Integer> loadTokens = new IdentityHashMap<>();
+    private final Map<DefaultMutableTreeNode, List<Runnable>> loadCallbacks = new IdentityHashMap<>();
+    private int nextLoadToken;
     private Path projectRoot;
     private int loadGeneration;
+    private int selectGeneration;
 
     public ProjectTreePanel() {
         super(new BorderLayout());
@@ -96,12 +107,25 @@ public final class ProjectTreePanel extends JPanel {
         refreshButton.setEnabled(false);
         refreshButton.addActionListener(e -> refresh());
 
+        selectButton.setToolTipText("Select the open file in the project tree");
+        selectButton.setFont(IdeTheme.UI_FONT.deriveFont(Font.PLAIN, 12f));
+        selectButton.setMargin(new java.awt.Insets(2, 6, 2, 6));
+        selectButton.setFocusable(false);
+        selectButton.setBorderPainted(false);
+        selectButton.setContentAreaFilled(false);
+        selectButton.setOpaque(false);
+        selectButton.setEnabled(false);
+        selectButton.addPropertyChangeListener("enabled", e -> applyToolbarButtonColor(selectButton));
+        applyToolbarButtonColor(selectButton);
+        selectButton.addActionListener(e -> selectOpenFile());
+
         JPanel toolbar = new JPanel(new BorderLayout());
         toolbar.setBackground(IdeTheme.BG_RAISED);
         toolbar.setBorder(new EmptyBorder(4, 8, 4, 8));
         toolbar.add(titleLabel, BorderLayout.WEST);
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         right.setOpaque(false);
+        right.add(selectButton);
         right.add(refreshButton);
         toolbar.add(right, BorderLayout.EAST);
 
@@ -190,6 +214,11 @@ public final class ProjectTreePanel extends JPanel {
             rename.addActionListener(e -> renameHandler.accept(fileNode.path()));
             menu.add(rename);
         }
+        if (!fileNode.directory()) {
+            JMenuItem delete = new JMenuItem("Delete");
+            delete.addActionListener(e -> deleteHandler.accept(fileNode.path()));
+            menu.add(delete);
+        }
         JMenuItem copyPath = new JMenuItem("Copy Path");
         copyPath.addActionListener(e -> copyPathHandler.accept(fileNode.path()));
         menu.add(copyPath);
@@ -222,6 +251,118 @@ public final class ProjectTreePanel extends JPanel {
         return refreshButton;
     }
 
+    JButton getSelectButton() {
+        return selectButton;
+    }
+
+    public void setActiveFileSupplier(Supplier<Path> activeFileSupplier) {
+        this.activeFileSupplier = activeFileSupplier != null ? activeFileSupplier : () -> null;
+    }
+
+    /**
+     * Selects the editor's current file in the tree, loading and expanding
+     * parent folders until that row is visible.
+     */
+    void selectOpenFile() {
+        selectFile(activeFileSupplier.get());
+    }
+
+    void selectFile(Path file) {
+        int generation = ++selectGeneration;
+        if (projectRoot == null || file == null) {
+            return;
+        }
+        Path target = file.toAbsolutePath().normalize();
+        Path root = projectRoot.toAbsolutePath().normalize();
+        if (!target.startsWith(root)) {
+            return;
+        }
+        reveal(rootNode, target, generation);
+    }
+
+    private void reveal(DefaultMutableTreeNode node, Path target, int generation) {
+        if (generation != selectGeneration || !(node.getUserObject() instanceof FileNode fileNode)) {
+            return;
+        }
+        Path nodePath = fileNode.path().toAbsolutePath().normalize();
+        if (nodePath.equals(target)) {
+            TreePath treePath = new TreePath(node.getPath());
+            tree.setSelectionPath(treePath);
+            tree.scrollPathToVisible(treePath);
+            return;
+        }
+        if (!fileNode.directory() || !target.startsWith(nodePath)) {
+            return;
+        }
+        if (needsLoad(node)) {
+            loadChildren(node, () -> {
+                if (generation != selectGeneration || needsLoad(node)) {
+                    return;
+                }
+                reveal(node, target, generation);
+            });
+            return;
+        }
+        DefaultMutableTreeNode next = findChildToward(node, target);
+        if (next == null) {
+            return;
+        }
+        tree.expandPath(new TreePath(node.getPath()));
+        reveal(next, target, generation);
+    }
+
+    private static DefaultMutableTreeNode findChildToward(DefaultMutableTreeNode node, Path target) {
+        if (!(node.getUserObject() instanceof FileNode fileNode)) {
+            return null;
+        }
+        Path nodePath = fileNode.path().toAbsolutePath().normalize();
+        Path relative;
+        try {
+            relative = nodePath.relativize(target.toAbsolutePath().normalize());
+        } catch (IllegalArgumentException ex) {
+            AppLog.exception("Could not locate " + target + " under " + nodePath, ex);
+            return null;
+        }
+        if (relative.getNameCount() == 0) {
+            return null;
+        }
+        Path nextName = relative.getName(0);
+        for (int i = 0; i < node.getChildCount(); i++) {
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) node.getChildAt(i);
+            if (!(child.getUserObject() instanceof FileNode childNode) || childNode.path().getFileName() == null) {
+                continue;
+            }
+            if (childNode.path().getFileName().equals(nextName)) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    Path getSelectedPath() {
+        TreePath path = tree.getSelectionPath();
+        if (path == null) {
+            return null;
+        }
+        Object user = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
+        if (user instanceof FileNode fileNode) {
+            return fileNode.path().toAbsolutePath().normalize();
+        }
+        return null;
+    }
+
+    int getSelectedRow() {
+        TreePath path = tree.getSelectionPath();
+        if (path == null) {
+            return -1;
+        }
+        return tree.getRowForPath(path);
+    }
+
+    private static void applyToolbarButtonColor(JButton button) {
+        button.setForeground(button.isEnabled() ? IdeTheme.FG : IdeTheme.FG_DISABLED);
+    }
+
     List<String> rootChildNames() {
         List<String> names = new ArrayList<>();
         for (int i = 0; i < rootNode.getChildCount(); i++) {
@@ -243,6 +384,10 @@ public final class ProjectTreePanel extends JPanel {
 
     public void setRenameHandler(Consumer<Path> renameHandler) {
         this.renameHandler = renameHandler;
+    }
+
+    public void setDeleteHandler(Consumer<Path> deleteHandler) {
+        this.deleteHandler = deleteHandler;
     }
 
     public void setCopyPathHandler(Consumer<Path> copyPathHandler) {
@@ -318,7 +463,12 @@ public final class ProjectTreePanel extends JPanel {
         Path root = directory.toAbsolutePath().normalize();
         this.projectRoot = root;
         refreshButton.setEnabled(true);
+        selectButton.setEnabled(true);
+        applyToolbarButtonColor(selectButton);
         int generation = ++loadGeneration;
+        selectGeneration++;
+        loadTokens.clear();
+        loadCallbacks.clear();
 
         rootNode.setUserObject(new FileNode(root, true));
         rootNode.removeAllChildren();
@@ -327,41 +477,42 @@ public final class ProjectTreePanel extends JPanel {
         tree.expandPath(new TreePath(rootNode.getPath()));
 
         setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-        new SwingWorker<List<DefaultMutableTreeNode>, Void>() {
-            @Override
-            protected List<DefaultMutableTreeNode> doInBackground() {
-                return listChildren(root);
-            }
-
-            @Override
-            protected void done() {
+        loadChildren(rootNode, () -> {
+            if (generation == loadGeneration) {
                 setCursor(Cursor.getDefaultCursor());
-                if (generation != loadGeneration) {
-                    return;
-                }
-                try {
-                    replaceChildren(rootNode, get());
-                    tree.expandPath(new TreePath(rootNode.getPath()));
-                } catch (Exception ex) {
-                    AppLog.exception("Could not load project tree root " + root, ex);
-                    replaceChildren(rootNode, List.of(
-                            new DefaultMutableTreeNode(new LabelNode(
-                                    "Failed to load: " + ex.getMessage()))));
-                }
             }
-        }.execute();
+        });
     }
 
     private void ensureChildrenLoaded(DefaultMutableTreeNode node) {
+        loadChildren(node, null);
+    }
+
+    /**
+     * Lists {@code node}'s children off the EDT. {@code after} runs on the EDT
+     * when this load finishes; callers that find the node still unloaded should stop.
+     */
+    private void loadChildren(DefaultMutableTreeNode node, Runnable after) {
         if (!(node.getUserObject() instanceof FileNode fileNode) || !fileNode.directory()) {
             return;
         }
         if (!needsLoad(node)) {
+            if (after != null) {
+                after.run();
+            }
+            return;
+        }
+        if (after != null) {
+            loadCallbacks.computeIfAbsent(node, key -> new ArrayList<>()).add(after);
+        }
+        if (loadTokens.containsKey(node)) {
             return;
         }
 
-        // Load subdirectory listings off the EDT so expand stays responsive.
+        Integer token = Integer.valueOf(++nextLoadToken);
+        loadTokens.put(node, token);
         final Path dir = fileNode.path();
+        final int generation = loadGeneration;
         new SwingWorker<List<DefaultMutableTreeNode>, Void>() {
             @Override
             protected List<DefaultMutableTreeNode> doInBackground() {
@@ -370,22 +521,46 @@ public final class ProjectTreePanel extends JPanel {
 
             @Override
             protected void done() {
-                if (!(node.getUserObject() instanceof FileNode current)
-                        || !current.path().equals(dir)
-                        || !needsLoad(node)) {
+                if (!token.equals(loadTokens.get(node))) {
                     return;
                 }
-                try {
-                    replaceChildren(node, get());
-                    tree.expandPath(new TreePath(node.getPath()));
-                } catch (Exception ex) {
-                    AppLog.exception("Could not load project tree folder " + dir, ex);
-                    replaceChildren(node, List.of(
-                            new DefaultMutableTreeNode(new LabelNode(
-                                    "Failed to load: " + ex.getMessage()))));
+                loadTokens.remove(node);
+                List<Runnable> callbacks = loadCallbacks.remove(node);
+                if (generation != loadGeneration) {
+                    return;
                 }
+                if (!(node.getUserObject() instanceof FileNode current)
+                        || !current.path().equals(dir)) {
+                    runCallbacks(callbacks);
+                    return;
+                }
+                if (needsLoad(node)) {
+                    try {
+                        replaceChildren(node, get());
+                        tree.expandPath(new TreePath(node.getPath()));
+                    } catch (Exception ex) {
+                        AppLog.exception("Could not load project tree folder " + dir, ex);
+                        replaceChildren(node, List.of(
+                                new DefaultMutableTreeNode(new LabelNode(
+                                        "Failed to load: " + ex.getMessage()))));
+                    }
+                }
+                runCallbacks(callbacks);
             }
         }.execute();
+    }
+
+    private static void runCallbacks(List<Runnable> callbacks) {
+        if (callbacks == null) {
+            return;
+        }
+        for (Runnable callback : callbacks) {
+            try {
+                callback.run();
+            } catch (RuntimeException ex) {
+                AppLog.exception("Project tree load callback failed", ex);
+            }
+        }
     }
 
     private static boolean needsLoad(DefaultMutableTreeNode node) {

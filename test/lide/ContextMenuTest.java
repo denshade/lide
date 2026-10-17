@@ -87,7 +87,7 @@ public final class ContextMenuTest {
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
         JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
-        assertEquals(List.of("Open", "Rename…", "Copy Path"), menuItemTexts(menu), "file menu items");
+        assertEquals(List.of("Open", "Rename…", "Delete", "Copy Path"), menuItemTexts(menu), "file menu items");
         findItem(menu, "Open").doClick();
         assertEquals(file, opened.get(), "open handler path");
     }
@@ -106,7 +106,7 @@ public final class ContextMenuTest {
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
         JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
-        assertEquals(List.of("Open", "Run Test", "Rename…", "Copy Path"), menuItemTexts(menu), "test file menu items");
+        assertEquals(List.of("Open", "Run Test", "Rename…", "Delete", "Copy Path"), menuItemTexts(menu), "test file menu items");
         findItem(menu, "Run Test").doClick();
         assertEquals(file, ran.get(), "run test handler path");
     }
@@ -162,6 +162,29 @@ public final class ContextMenuTest {
         findItem(menu, "Copy Path").doClick();
         assertEquals(file, renamed.get(), "rename handler path");
         assertEquals(file, copied.get(), "copy path handler path");
+    }
+
+    @Test
+    void testProjectTreeDeleteHandler() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testProjectTreeDeleteHandler);
+            return;
+        }
+        ProjectTreePanel tree = new ProjectTreePanel();
+        AtomicReference<Path> deleted = new AtomicReference<>();
+        tree.setDeleteHandler(deleted::set);
+
+        Path file = Path.of("src", "Demo.java");
+        DefaultMutableTreeNode node =
+                new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
+        JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
+        findItem(menu, "Delete").doClick();
+        assertEquals(file, deleted.get(), "delete handler path");
+
+        DefaultMutableTreeNode dir = new DefaultMutableTreeNode(
+                new ProjectTreePanel.FileNode(Path.of("src"), true));
+        JPopupMenu dirMenu = tree.createContextMenu(dir).orElseThrow();
+        assertTrue(findItem(dirMenu, "Delete") == null, "no delete on folder");
     }
 
     @Test
