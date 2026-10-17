@@ -1,6 +1,7 @@
 package lide;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.KeyEventDispatcher;
@@ -25,6 +26,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
@@ -54,7 +56,7 @@ public final class MainFrame extends JFrame {
     private JMenuItem javaHomeSetItem;
     private JMenuItem javaHomeClearItem;
     private final KeyEventDispatcher ladleHotkeyDispatcher =
-            e -> LadleHotkeys.dispatch(e, this, this::runLadleOrGradle);
+            e -> LadleHotkeys.dispatch(e, this, command -> runLadleOrGradle(command, keyComponent(e)));
     private final KeyEventDispatcher navigationHotkeyDispatcher =
             e -> NavigationHotkeys.dispatch(e, this, this::handleNavigationHotkey);
     private final DoubleShiftHotkeys doubleShiftHotkeys = new DoubleShiftHotkeys();
@@ -606,14 +608,52 @@ public final class MainFrame extends JFrame {
 
     /**
      * F4/F5/F6: Ladle when the project has it, otherwise Gradle.
+     * F6 pressed inside a {@code *Test.java} editor runs only that class.
      */
     void runLadleOrGradle(String ladleCommand) {
+        runLadleOrGradle(ladleCommand, KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner());
+    }
+
+    void runLadleOrGradle(String ladleCommand, Component focus) {
+        if (LadleCommand.TEST.equals(ladleCommand)) {
+            Path testFile = focusedTestFile(focus);
+            if (testFile != null) {
+                runSingleTest(testFile);
+                return;
+            }
+        }
         Path root = projectTree.getProjectRoot();
         if (GradleCommand.preferredOverLadle(root)) {
             runGradle(GradleCommand.taskFor(ladleCommand));
             return;
         }
         runLadle(ladleCommand);
+    }
+
+    /**
+     * The open {@code *Test.java} file when {@code focus} is inside its editor.
+     * Null means F6 should run the full suite.
+     */
+    Path focusedTestFile(Component focus) {
+        CodeEditor editor = editors.getActiveEditor();
+        if (editor == null || focus == null) {
+            return null;
+        }
+        Path path = editor.getFilePath();
+        if (!TestNavigator.isTestJavaFile(path)) {
+            return null;
+        }
+        if (focus != editor && !SwingUtilities.isDescendingFrom(focus, editor)) {
+            return null;
+        }
+        return path.toAbsolutePath().normalize();
+    }
+
+    private static Component keyComponent(KeyEvent event) {
+        if (event != null && event.getSource() instanceof Component component) {
+            return component;
+        }
+        return null;
     }
 
     void runSingleTest(Path testFile) {
