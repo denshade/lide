@@ -1,5 +1,11 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
+import java.awt.GraphicsEnvironment;
+import javax.swing.SwingUtilities;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -8,35 +14,17 @@ import java.util.List;
  * Tests for script discovery and command building.
  */
 public final class ScriptsPanelTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testIsScript();
-        testFindScriptsSkipsOutAndFindsBat();
-        testDisplayName();
-        testCommandForBat();
-        testCommandForPs1();
-        testCommandForPy();
-        testPanelRefresh();
-        testRunCommand();
-        testStopRunning();
-        testFloodKeepsEdtResponsive();
-        testConsoleOutputIsCapped();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @Test
+    void testIsScript() throws Exception {
+        assertTrue(ScriptFinder.isScript(Path.of("build.bat")), "bat");
+        assertTrue(ScriptFinder.isScript(Path.of("run.ps1")), "ps1");
+        assertTrue(ScriptFinder.isScript(Path.of("tool.py")), "py");
+        assertTrue(!ScriptFinder.isScript(Path.of("Main.java")), "java not script");
     }
 
-    private static void testIsScript() {
-        assertTrue("bat", ScriptFinder.isScript(Path.of("build.bat")));
-        assertTrue("ps1", ScriptFinder.isScript(Path.of("run.ps1")));
-        assertTrue("py", ScriptFinder.isScript(Path.of("tool.py")));
-        assertTrue("java not script", !ScriptFinder.isScript(Path.of("Main.java")));
-    }
-
-    private static void testFindScriptsSkipsOutAndFindsBat() throws Exception {
+    @Test
+    void testFindScriptsSkipsOutAndFindsBat() throws Exception {
         Path root = Files.createTempDirectory("lide-scripts");
         try {
             Files.writeString(root.resolve("build.bat"), "@echo off\n");
@@ -49,70 +37,67 @@ public final class ScriptsPanelTest {
             Files.writeString(nested.resolve("clean.ps1"), "Write-Host hi");
 
             List<Path> scripts = ScriptFinder.findScripts(root);
-            assertEqual("count", 2, scripts.size());
-            assertTrue("has build.bat",
-                    scripts.stream().anyMatch(p -> p.getFileName().toString().equals("build.bat")));
-            assertTrue("has clean.ps1",
-                    scripts.stream().anyMatch(p -> p.getFileName().toString().equals("clean.ps1")));
-            assertTrue("skips out",
-                    scripts.stream().noneMatch(p -> p.toString().contains("out")));
+            assertEquals(2, scripts.size(), "count");
+            assertTrue(scripts.stream().anyMatch(p -> p.getFileName().toString().equals("build.bat")), "has build.bat");
+            assertTrue(scripts.stream().anyMatch(p -> p.getFileName().toString().equals("clean.ps1")), "has clean.ps1");
+            assertTrue(scripts.stream().noneMatch(p -> p.toString().contains("out")), "skips out");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testDisplayName() {
+    @Test
+    void testDisplayName() throws Exception {
         Path root = Path.of("C:/proj").toAbsolutePath().normalize();
         Path script = root.resolve("tools").resolve("run.bat");
-        assertEqual("relative", "tools/run.bat", ScriptFinder.displayName(root, script));
+        assertEquals("tools/run.bat", ScriptFinder.displayName(root, script), "relative");
     }
 
-    private static void testCommandForBat() {
+    @Test
+    void testCommandForBat() throws Exception {
         Path script = Path.of("C:/proj/build.bat").toAbsolutePath().normalize();
         List<String> cmd = ScriptCommand.commandFor(script);
-        assertTrue("cmd launcher", cmd.get(0).toLowerCase().contains("cmd"));
-        assertEqual("/c", "/c", cmd.get(1));
-        assertTrue("script path", cmd.get(2).endsWith("build.bat"));
+        assertTrue(cmd.get(0).toLowerCase().contains("cmd"), "cmd launcher");
+        assertEquals("/c", cmd.get(1), "/c");
+        assertTrue(cmd.get(2).endsWith("build.bat"), "script path");
     }
 
-    private static void testCommandForPs1() {
+    @Test
+    void testCommandForPs1() throws Exception {
         Path script = Path.of("C:/proj/go.ps1").toAbsolutePath().normalize();
         List<String> cmd = ScriptCommand.commandFor(script);
-        assertTrue("powershell", cmd.get(0).toLowerCase().contains("powershell")
-                || cmd.get(0).equalsIgnoreCase("pwsh"));
-        assertTrue("has -File", cmd.contains("-File"));
+        assertTrue(cmd.get(0).toLowerCase().contains("powershell")
+                || cmd.get(0).equalsIgnoreCase("pwsh"), "powershell");
+        assertTrue(cmd.contains("-File"), "has -File");
     }
 
-    private static void testCommandForPy() {
+    @Test
+    void testCommandForPy() throws Exception {
         Path script = Path.of("C:/proj/tool.py").toAbsolutePath().normalize();
         List<String> cmd = ScriptCommand.commandFor(script);
-        assertTrue("python launcher", cmd.get(0).equals("py") || cmd.get(0).equals("python3"));
-        assertTrue("script last", cmd.get(cmd.size() - 1).endsWith("tool.py"));
+        assertTrue(cmd.get(0).equals("py") || cmd.get(0).equals("python3"), "python launcher");
+        assertTrue(cmd.get(cmd.size() - 1).endsWith("tool.py"), "script last");
     }
 
-    private static void testPanelRefresh() throws Exception {
-        if (java.awt.GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP panel refresh in headless");
-            return;
-        }
+    @Test
+    void testPanelRefresh() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "SKIP panel refresh in headless");
         Path root = Files.createTempDirectory("lide-scripts-ui");
         try {
             Files.writeString(root.resolve("a.bat"), "@echo off\necho hi\n");
             javax.swing.SwingUtilities.invokeAndWait(() -> {
                 ScriptsPanel panel = new ScriptsPanel();
                 panel.setProjectRoot(root);
-                assertEqual("panel count", 1, panel.getScriptCount());
+                assertEquals(1, panel.getScriptCount(), "panel count");
             });
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testRunCommand() throws Exception {
-        if (java.awt.GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP runCommand in headless");
-            return;
-        }
+    @Test
+    void testRunCommand() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "SKIP runCommand in headless");
         Path root = Files.createTempDirectory("lide-run-cmd");
         try {
             ScriptsPanel panel = new ScriptsPanel();
@@ -133,19 +118,17 @@ public final class ScriptsPanelTest {
             String[] holder = new String[1];
             javax.swing.SwingUtilities.invokeAndWait(() -> holder[0] = panel.getOutputText());
             String output = holder[0];
-            assertTrue("not running", !panel.isRunning());
-            assertTrue("shows command", output.contains("echo"));
-            assertTrue("shows hello", output.contains("hello-ladle"));
+            assertTrue(!panel.isRunning(), "not running");
+            assertTrue(output.contains("echo"), "shows command");
+            assertTrue(output.contains("hello-ladle"), "shows hello");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testStopRunning() throws Exception {
-        if (java.awt.GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP stopRunning in headless");
-            return;
-        }
+    @Test
+    void testStopRunning() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "SKIP stopRunning in headless");
         Path root = Files.createTempDirectory("lide-stop-cmd");
         try {
             Path script = writeHangScript(root);
@@ -154,22 +137,20 @@ public final class ScriptsPanelTest {
                 panel.setProjectRoot(root);
                 panel.runScript(script);
             });
-            assertTrue("started", waitUntil(() -> panel.isRunning(), 5000));
+            assertTrue(waitUntil(() -> panel.isRunning(), 5000), "started");
             javax.swing.SwingUtilities.invokeAndWait(panel::stopRunning);
-            assertTrue("stopped", waitUntil(() -> !panel.isRunning(), 8000));
+            assertTrue(waitUntil(() -> !panel.isRunning(), 8000), "stopped");
             String[] holder = new String[1];
             javax.swing.SwingUtilities.invokeAndWait(() -> holder[0] = panel.getOutputText());
-            assertTrue("stopped message", holder[0].contains("[stopped]"));
+            assertTrue(holder[0].contains("[stopped]"), "stopped message");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testFloodKeepsEdtResponsive() throws Exception {
-        if (java.awt.GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP flood EDT in headless");
-            return;
-        }
+    @Test
+    void testFloodKeepsEdtResponsive() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "SKIP flood EDT in headless");
         Path root = Files.createTempDirectory("lide-flood-cmd");
         try {
             Path script = writeFloodScript(root, 4000);
@@ -178,24 +159,22 @@ public final class ScriptsPanelTest {
                 panel.setProjectRoot(root);
                 panel.runScript(script);
             });
-            assertTrue("flood started", waitUntil(
-                    () -> panel.getOutputText().contains("flood-line-"), 8000));
+            assertTrue(waitUntil(
+                    () -> panel.getOutputText().contains("flood-line-"), 8000), "flood started");
             long start = System.currentTimeMillis();
             javax.swing.SwingUtilities.invokeAndWait(() -> {
             });
             long waited = System.currentTimeMillis() - start;
-            assertTrue("EDT responsive in " + waited + "ms", waited < 1000);
-            assertTrue("flood finished", waitUntil(() -> !panel.isRunning(), 15000));
+            assertTrue(waited < 1000, "EDT responsive in " + waited + "ms");
+            assertTrue(waitUntil(() -> !panel.isRunning(), 15000), "flood finished");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testConsoleOutputIsCapped() throws Exception {
-        if (java.awt.GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP console cap in headless");
-            return;
-        }
+    @Test
+    void testConsoleOutputIsCapped() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "SKIP console cap in headless");
         Path root = Files.createTempDirectory("lide-cap-cmd");
         try {
             Path script = writeFloodScript(root, 200);
@@ -205,11 +184,11 @@ public final class ScriptsPanelTest {
                 panel.setProjectRoot(root);
                 panel.runScript(script);
             });
-            assertTrue("cap finished", waitUntil(() -> !panel.isRunning(), 15000));
+            assertTrue(waitUntil(() -> !panel.isRunning(), 15000), "cap finished");
             String[] holder = new String[1];
             javax.swing.SwingUtilities.invokeAndWait(() -> holder[0] = panel.getOutputText());
-            assertTrue("capped length " + holder[0].length(), holder[0].length() <= 1500);
-            assertTrue("kept recent output", holder[0].contains("flood-line-"));
+            assertTrue(holder[0].length() <= 1500, "capped length " + holder[0].length());
+            assertTrue(holder[0].contains("flood-line-"), "kept recent output");
         } finally {
             deleteRecursive(root);
         }
@@ -268,24 +247,4 @@ public final class ScriptsPanelTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private ScriptsPanelTest() {
-    }
 }

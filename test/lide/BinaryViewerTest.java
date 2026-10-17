@@ -1,5 +1,9 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
 import java.awt.GraphicsEnvironment;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -10,137 +14,126 @@ import javax.swing.SwingUtilities;
  * Tests for binary detection, hex dump formatting, and binary viewer tabs.
  */
 public final class BinaryViewerTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testDetectsNullByteAsBinary();
-        testTextIsNotBinary();
-        testHighControlRatioIsBinary();
-        testHexDumpFormat();
-        testHexDumpTruncation();
-        testEncodingFailureHeuristic();
-        if (!GraphicsEnvironment.isHeadless()) {
-            SwingUtilities.invokeAndWait(BinaryViewerTest::testOpensBinaryTab);
-            SwingUtilities.invokeAndWait(BinaryViewerTest::testOpensTextTab);
-            SwingUtilities.invokeAndWait(BinaryViewerTest::testOpensKnownTextDespiteLatin1);
-            SwingUtilities.invokeAndWait(BinaryViewerTest::testOpensUtf16TextFile);
-            SwingUtilities.invokeAndWait(BinaryViewerTest::testKnownBinaryOpensAsHex);
-        }
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testDetectsNullByteAsBinary() {
+    @Test
+    void testDetectsNullByteAsBinary() throws Exception {
         byte[] data = new byte[] {'a', 'b', 0, 'c'};
-        assertTrue("null byte is binary", BinaryDetector.isBinary(data));
+        assertTrue(BinaryDetector.isBinary(data), "null byte is binary");
     }
 
-    private static void testTextIsNotBinary() {
+    @Test
+    void testTextIsNotBinary() throws Exception {
         byte[] data = "hello\r\nworld\t!".getBytes(StandardCharsets.UTF_8);
-        assertTrue("plain text not binary", !BinaryDetector.isBinary(data));
+        assertTrue(!BinaryDetector.isBinary(data), "plain text not binary");
     }
 
-    private static void testHighControlRatioIsBinary() {
+    @Test
+    void testHighControlRatioIsBinary() throws Exception {
         byte[] data = new byte[100];
         for (int i = 0; i < data.length; i++) {
             data[i] = (byte) (i % 2 == 0 ? 0x01 : 0x02);
         }
-        assertTrue("control-heavy is binary", BinaryDetector.isBinary(data));
+        assertTrue(BinaryDetector.isBinary(data), "control-heavy is binary");
     }
 
-    private static void testHexDumpFormat() {
+    @Test
+    void testHexDumpFormat() throws Exception {
         byte[] data = "Hello World!".getBytes(StandardCharsets.US_ASCII);
         String dump = HexDump.format(data);
-        assertTrue("has offset", dump.startsWith("00000000"));
-        assertTrue("has hex", dump.contains("48 65 6C 6C 6F"));
-        assertTrue("has ascii", dump.contains("|Hello World!|"));
+        assertTrue(dump.startsWith("00000000"), "has offset");
+        assertTrue(dump.contains("48 65 6C 6C 6F"), "has hex");
+        assertTrue(dump.contains("|Hello World!|"), "has ascii");
     }
 
-    private static void testHexDumpTruncation() {
+    @Test
+    void testHexDumpTruncation() throws Exception {
         byte[] data = new byte[40];
         for (int i = 0; i < data.length; i++) {
             data[i] = (byte) i;
         }
         String dump = HexDump.format(data, 16);
-        assertTrue("truncated note", dump.contains("truncated after 16 of 40"));
-        assertTrue("only one full line of offsets", dump.indexOf("00000010") < 0);
+        assertTrue(dump.contains("truncated after 16 of 40"), "truncated note");
+        assertTrue(dump.indexOf("00000010") < 0, "only one full line of offsets");
     }
 
-    private static void testEncodingFailureHeuristic() {
-        assertTrue("malformed message",
-                EditorTabPane.looksLikeEncodingFailure(
-                        new java.nio.charset.MalformedInputException(1)));
-        assertTrue("plain io not encoding",
-                !EditorTabPane.looksLikeEncodingFailure(new java.io.IOException("disk full")));
+    @Test
+    void testEncodingFailureHeuristic() throws Exception {
+        assertTrue(EditorTabPane.looksLikeEncodingFailure(
+                        new java.nio.charset.MalformedInputException(1)), "malformed message");
+        assertTrue(!EditorTabPane.looksLikeEncodingFailure(new java.io.IOException("disk full")), "plain io not encoding");
     }
 
-    private static void testOpensBinaryTab() {
-        try {
-            Path file = Files.createTempFile("lide-bin-", ".dat");
+    @Test
+    void testOpensBinaryTab() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testOpensBinaryTab);
+            return;
+        }
+                    Path file = Files.createTempFile("lide-bin-", ".dat");
             try {
                 Files.write(file, new byte[] {0x00, 0x01, 0x02, (byte) 0xFF, 'A'});
                 EditorTabPane pane = new EditorTabPane();
                 pane.openFile(file);
-                assertTrue("binary viewer active", pane.getActiveBinaryViewer() != null);
-                assertTrue("no text editor", pane.getActiveEditor() == null);
+                assertTrue(pane.getActiveBinaryViewer() != null, "binary viewer active");
+                assertTrue(pane.getActiveEditor() == null, "no text editor");
                 BinaryViewer viewer = pane.getActiveBinaryViewer();
-                assertTrue("title marks binary", viewer.getTitle().contains("[binary]"));
-                assertTrue("hex shown", viewer.getHexText().contains("00 01 02 FF 41"));
+                assertTrue(viewer.getTitle().contains("[binary]"), "title marks binary");
+                assertTrue(viewer.getHexText().contains("00 01 02 FF 41"), "hex shown");
             } finally {
                 Files.deleteIfExists(file);
             }
-        } catch (Exception ex) {
-            failed++;
-            System.err.println("FAIL opens binary tab: " + ex);
-        }
     }
 
-    private static void testOpensTextTab() {
-        try {
-            Path file = Files.createTempFile("lide-txt-", ".txt");
+    @Test
+    void testOpensTextTab() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testOpensTextTab);
+            return;
+        }
+                    Path file = Files.createTempFile("lide-txt-", ".txt");
             try {
                 Files.writeString(file, "hello text", StandardCharsets.UTF_8);
                 EditorTabPane pane = new EditorTabPane();
                 pane.openFile(file);
-                assertTrue("text editor active", pane.getActiveEditor() != null);
-                assertTrue("no binary viewer", pane.getActiveBinaryViewer() == null);
-                assertEqual("text content", "hello text",
-                        normalize(pane.getActiveEditor().getText()));
+                assertTrue(pane.getActiveEditor() != null, "text editor active");
+                assertTrue(pane.getActiveBinaryViewer() == null, "no binary viewer");
+                assertEquals("hello text", normalize(pane.getActiveEditor().getText()), "text content");
             } finally {
                 Files.deleteIfExists(file);
             }
-        } catch (Exception ex) {
-            failed++;
-            System.err.println("FAIL opens text tab: " + ex);
-        }
     }
 
-    private static void testOpensKnownTextDespiteLatin1() {
-        try {
-            Path file = Files.createTempFile("lide-csv-", ".csv");
+    @Test
+    void testOpensKnownTextDespiteLatin1() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testOpensKnownTextDespiteLatin1);
+            return;
+        }
+                    Path file = Files.createTempFile("lide-csv-", ".csv");
             try {
                 Files.write(file, new byte[] {'a', ',', (byte) 0xE9, '\n'});
                 EditorTabPane pane = new EditorTabPane();
                 pane.openFile(file);
-                assertTrue("csv opens as text", pane.getActiveEditor() != null);
-                assertTrue("csv not hex", pane.getActiveBinaryViewer() == null);
+                assertTrue(pane.getActiveEditor() != null, "csv opens as text");
+                assertTrue(pane.getActiveBinaryViewer() == null, "csv not hex");
                 String text = normalize(pane.getActiveEditor().getText());
-                assertEqual("latin1 csv", "a,\u00E9", text.strip());
+                assertEquals("a,\u00E9", text.strip(), "latin1 csv");
             } finally {
                 Files.deleteIfExists(file);
             }
-        } catch (Exception ex) {
-            failed++;
-            System.err.println("FAIL opens latin1 csv: " + ex);
-        }
     }
 
-    private static void testOpensUtf16TextFile() {
-        try {
-            Path file = Files.createTempFile("lide-md-", ".md");
+    @Test
+    void testOpensUtf16TextFile() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testOpensUtf16TextFile);
+            return;
+        }
+                    Path file = Files.createTempFile("lide-md-", ".md");
             try {
                 Files.write(file, new byte[] {
                         (byte) 0xFF, (byte) 0xFE,
@@ -148,59 +141,35 @@ public final class BinaryViewerTest {
                 });
                 EditorTabPane pane = new EditorTabPane();
                 pane.openFile(file);
-                assertTrue("md opens as text", pane.getActiveEditor() != null);
-                assertTrue("md not hex", pane.getActiveBinaryViewer() == null);
-                assertEqual("utf16 md", "# Hi",
-                        normalize(pane.getActiveEditor().getText()));
+                assertTrue(pane.getActiveEditor() != null, "md opens as text");
+                assertTrue(pane.getActiveBinaryViewer() == null, "md not hex");
+                assertEquals("# Hi", normalize(pane.getActiveEditor().getText()), "utf16 md");
             } finally {
                 Files.deleteIfExists(file);
             }
-        } catch (Exception ex) {
-            failed++;
-            System.err.println("FAIL opens utf16 md: " + ex);
-        }
     }
 
-    private static void testKnownBinaryOpensAsHex() {
-        try {
-            Path file = Files.createTempFile("lide-png-", ".png");
+    @Test
+    void testKnownBinaryOpensAsHex() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testKnownBinaryOpensAsHex);
+            return;
+        }
+                    Path file = Files.createTempFile("lide-png-", ".png");
             try {
                 Files.write(file, "not really a png".getBytes(StandardCharsets.US_ASCII));
                 EditorTabPane pane = new EditorTabPane();
                 pane.openFile(file);
-                assertTrue("png opens as binary", pane.getActiveBinaryViewer() != null);
-                assertTrue("png not text editor", pane.getActiveEditor() == null);
+                assertTrue(pane.getActiveBinaryViewer() != null, "png opens as binary");
+                assertTrue(pane.getActiveEditor() == null, "png not text editor");
             } finally {
                 Files.deleteIfExists(file);
             }
-        } catch (Exception ex) {
-            failed++;
-            System.err.println("FAIL opens png as hex: " + ex);
-        }
     }
 
     private static String normalize(String text) {
         return text.replace("\r\n", "\n").replace('\r', '\n');
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private BinaryViewerTest() {
-    }
 }

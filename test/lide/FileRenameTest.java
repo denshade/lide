@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.Assumptions;
 import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
@@ -14,132 +19,93 @@ import javax.swing.SwingUtilities;
  * Tests for renaming files and copying their paths.
  */
 public final class FileRenameTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testRenamesFile();
-        testRenamesDirectory();
-        testRejectsExistingTarget();
-        testRejectsBlankAndSeparators();
-        testSameNameIsNoOp();
-        testRemapOpenPath();
-        testAbsolutePathText();
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run rename UI tests");
-        } else {
-            testRenamesOpenEditor();
-            testCopyPathToClipboard();
-            testTabCopyPathCopiesAbsolute();
-        }
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testRenamesFile() throws Exception {
+    @Test
+    void testRenamesFile() throws Exception {
         Path dir = Files.createTempDirectory("lide-rename-file");
         try {
             Path source = dir.resolve("old.txt");
             Files.writeString(source, "hello");
             Path renamed = FileRename.rename(source, "new.txt");
-            assertTrue("old gone", !Files.exists(source));
-            assertTrue("new exists", Files.isRegularFile(renamed));
-            assertEqual("name", "new.txt", renamed.getFileName().toString());
-            assertEqual("content", "hello", Files.readString(renamed));
+            assertTrue(!Files.exists(source), "old gone");
+            assertTrue(Files.isRegularFile(renamed), "new exists");
+            assertEquals("new.txt", renamed.getFileName().toString(), "name");
+            assertEquals("hello", Files.readString(renamed), "content");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testRenamesDirectory() throws Exception {
+    @Test
+    void testRenamesDirectory() throws Exception {
         Path dir = Files.createTempDirectory("lide-rename-dir");
         try {
             Path source = Files.createDirectory(dir.resolve("pkg"));
             Files.writeString(source.resolve("A.java"), "class A {}");
             Path renamed = FileRename.rename(source, "other");
-            assertTrue("old gone", !Files.exists(source));
-            assertTrue("dir moved", Files.isDirectory(renamed));
-            assertTrue("child moved", Files.isRegularFile(renamed.resolve("A.java")));
+            assertTrue(!Files.exists(source), "old gone");
+            assertTrue(Files.isDirectory(renamed), "dir moved");
+            assertTrue(Files.isRegularFile(renamed.resolve("A.java")), "child moved");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testRejectsExistingTarget() throws Exception {
+    @Test
+    void testRejectsExistingTarget() throws Exception {
         Path dir = Files.createTempDirectory("lide-rename-exists");
         try {
             Path source = dir.resolve("a.txt");
             Files.writeString(source, "a");
             Files.writeString(dir.resolve("b.txt"), "b");
-            try {
-                FileRename.rename(source, "b.txt");
-                failed++;
-                System.err.println("FAIL existing target: expected exception");
-            } catch (java.nio.file.FileAlreadyExistsException ex) {
-                passed++;
-                assertEqual("source kept", "a", Files.readString(source));
-            }
+            java.nio.file.FileAlreadyExistsException ex = assertThrows(java.nio.file.FileAlreadyExistsException.class, () -> FileRename.rename(source, "b.txt"));
+        assertEquals("a", Files.readString(source), "source kept");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testRejectsBlankAndSeparators() {
-        try {
-            FileRename.validateSimpleName("  ");
-            failed++;
-            System.err.println("FAIL blank: expected exception");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-        }
-        try {
-            FileRename.validateSimpleName("foo/bar.txt");
-            failed++;
-            System.err.println("FAIL slash: expected exception");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-        }
-        try {
-            FileRename.validateSimpleName("a<b.txt");
-            failed++;
-            System.err.println("FAIL illegal char: expected exception");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-        }
+    @Test
+    void testRejectsBlankAndSeparators() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> FileRename.validateSimpleName("  "));
+        assertThrows(IllegalArgumentException.class, () -> FileRename.validateSimpleName("foo/bar.txt"));
+        assertThrows(IllegalArgumentException.class, () -> FileRename.validateSimpleName("a<b.txt"));
     }
 
-    private static void testSameNameIsNoOp() throws Exception {
+    @Test
+    void testSameNameIsNoOp() throws Exception {
         Path dir = Files.createTempDirectory("lide-rename-same");
         try {
             Path source = dir.resolve("keep.txt");
             Files.writeString(source, "same");
             Path result = FileRename.rename(source, "keep.txt");
-            assertTrue("still there", Files.isRegularFile(result));
-            assertEqual("unchanged", "same", Files.readString(result));
+            assertTrue(Files.isRegularFile(result), "still there");
+            assertEquals("same", Files.readString(result), "unchanged");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testRemapOpenPath() {
+    @Test
+    void testRemapOpenPath() throws Exception {
         Path from = Path.of("proj", "src").toAbsolutePath().normalize();
         Path to = Path.of("proj", "app").toAbsolutePath().normalize();
         Path child = from.resolve("Hello.java");
         Path remapped = FileRename.remapOpenPath(child, from, to);
-        assertEqual("child remapped", to.resolve("Hello.java"), remapped);
-        assertEqual("exact remapped", to, FileRename.remapOpenPath(from, from, to));
-        assertTrue("unrelated", FileRename.remapOpenPath(Path.of("other"), from, to) == null);
+        assertEquals(to.resolve("Hello.java"), remapped, "child remapped");
+        assertEquals(to, FileRename.remapOpenPath(from, from, to), "exact remapped");
+        assertTrue(FileRename.remapOpenPath(Path.of("other"), from, to) == null, "unrelated");
     }
 
-    private static void testAbsolutePathText() {
+    @Test
+    void testAbsolutePathText() throws Exception {
         Path path = Path.of("src", "Demo.java");
-        assertEqual("absolute", path.toAbsolutePath().normalize().toString(),
-                PathClipboard.absolutePath(path));
+        assertEquals(path.toAbsolutePath().normalize().toString(), PathClipboard.absolutePath(path), "absolute");
     }
 
-    private static void testRenamesOpenEditor() throws Exception {
+    @Test
+    void testRenamesOpenEditor() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
         Path root = Files.createTempDirectory("lide-rename-ui");
         try {
             Path source = root.resolve("Hello.java");
@@ -150,15 +116,13 @@ public final class FileRenameTest {
                     frame.applyProjectDirectory(root);
                     frame.editorTabs().openFile(source);
                     Path renamed = frame.renamePath(source, "Hi.java");
-                    assertTrue("renamed path", renamed != null);
-                    assertTrue("new file", Files.isRegularFile(root.resolve("Hi.java")));
-                    assertTrue("old gone", !Files.exists(source));
+                    assertTrue(renamed != null, "renamed path");
+                    assertTrue(Files.isRegularFile(root.resolve("Hi.java")), "new file");
+                    assertTrue(!Files.exists(source), "old gone");
                     CodeEditor editor = frame.editorTabs().getActiveEditor();
-                    assertTrue("editor open", editor != null);
-                    assertEqual("editor path",
-                            root.resolve("Hi.java").toAbsolutePath().normalize(),
-                            editor.getFilePath().toAbsolutePath().normalize());
-                    assertEqual("tab title", "Hi.java", editor.getTitle());
+                    assertTrue(editor != null, "editor open");
+                    assertEquals(root.resolve("Hi.java").toAbsolutePath().normalize(), editor.getFilePath().toAbsolutePath().normalize(), "editor path");
+                    assertEquals("Hi.java", editor.getTitle(), "tab title");
                 } finally {
                     frame.dispose();
                 }
@@ -168,20 +132,24 @@ public final class FileRenameTest {
         }
     }
 
-    private static void testCopyPathToClipboard() throws Exception {
+    @Test
+    void testCopyPathToClipboard() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
         Path dir = Files.createTempDirectory("lide-copy-path");
         try {
             Path file = dir.resolve("notes.txt");
             Files.writeString(file, "x");
             SwingUtilities.invokeAndWait(() -> PathClipboard.copy(file));
             String clip = clipboardText();
-            assertEqual("clipboard", PathClipboard.absolutePath(file), clip);
+            assertEquals(PathClipboard.absolutePath(file), clip, "clipboard");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testTabCopyPathCopiesAbsolute() throws Exception {
+    @Test
+    void testTabCopyPathCopiesAbsolute() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
         Path dir = Files.createTempDirectory("lide-tab-copy");
         try {
             Path file = dir.resolve("App.java");
@@ -197,11 +165,11 @@ public final class FileRenameTest {
                         break;
                     }
                 }
-                assertTrue("copy path item", copyPath != null);
-                assertTrue("copy path enabled", copyPath.isEnabled());
+                assertTrue(copyPath != null, "copy path item");
+                assertTrue(copyPath.isEnabled(), "copy path enabled");
                 copyPath.doClick();
             });
-            assertEqual("tab clipboard", PathClipboard.absolutePath(file), clipboardText());
+            assertEquals(PathClipboard.absolutePath(file), clipboardText(), "tab clipboard");
         } finally {
             deleteRecursive(dir);
         }
@@ -225,24 +193,4 @@ public final class FileRenameTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private FileRenameTest() {
-    }
 }

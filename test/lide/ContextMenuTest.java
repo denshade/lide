@@ -1,7 +1,13 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import java.awt.Component;
 import java.awt.GraphicsEnvironment;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,66 +21,64 @@ import javax.swing.tree.DefaultMutableTreeNode;
  * Tests for right-click context menus.
  */
 public final class ContextMenuTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run Swing context-menu tests");
-            return;
-        }
-        SwingUtilities.invokeAndWait(() -> {
-            testTabContextMenuItems();
-            testCloseOthers();
-            testCloseAll();
-            testProjectTreeFileMenu();
-            testProjectTreeTestFileMenu();
-            testProjectTreeDirectoryMenu();
-            testProjectTreeNewFileHandler();
-            testProjectTreeRenameAndCopyPathHandlers();
-            testProjectRootOmitsRename();
-            testProjectTreeLabelHasNoMenu();
-            testClickInactiveTabSelectsIt();
-            testTabCloseUsesXIcon();
-        });
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @BeforeEach
+    void requireDisplay() {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(),
+                "headless environment cannot run ContextMenuTest");
     }
 
-    private static void testTabContextMenuItems() {
+    @Test
+    void testTabContextMenuItems() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testTabContextMenuItems);
+            return;
+        }
         EditorTabPane pane = new EditorTabPane();
         pane.openUntitled("a.txt", "a", Language.PLAIN);
         pane.openUntitled("b.txt", "b", Language.PLAIN);
         JPopupMenu menu = pane.createTabContextMenu(0);
         List<String> labels = menuItemTexts(menu);
-        assertEqual("tab menu items", List.of("Close", "Close Others", "Close All", "Copy Path"), labels);
-        assertTrue("Close Others enabled with 2 tabs",
-                findItem(menu, "Close Others").isEnabled());
-        assertTrue("Copy Path disabled for untitled", !findItem(menu, "Copy Path").isEnabled());
+        assertEquals(List.of("Close", "Close Others", "Close All", "Copy Path"), labels, "tab menu items");
+        assertTrue(findItem(menu, "Close Others").isEnabled(), "Close Others enabled with 2 tabs");
+        assertTrue(!findItem(menu, "Copy Path").isEnabled(), "Copy Path disabled for untitled");
     }
 
-    private static void testCloseOthers() {
+    @Test
+    void testCloseOthers() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testCloseOthers);
+            return;
+        }
         EditorTabPane pane = new EditorTabPane();
         pane.openUntitled("a.txt", "a", Language.PLAIN);
         pane.openUntitled("b.txt", "b", Language.PLAIN);
         pane.openUntitled("c.txt", "c", Language.PLAIN);
         CodeEditor keep = pane.getActiveEditor();
         pane.closeOtherTabs(keep);
-        assertEqual("tabs after close others", 1, pane.getTabCount());
-        assertEqual("kept editor", keep, pane.getActiveEditor());
+        assertEquals(1, pane.getTabCount(), "tabs after close others");
+        assertEquals(keep, pane.getActiveEditor(), "kept editor");
     }
 
-    private static void testCloseAll() {
+    @Test
+    void testCloseAll() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testCloseAll);
+            return;
+        }
         EditorTabPane pane = new EditorTabPane();
         pane.openUntitled("a.txt", "a", Language.PLAIN);
         pane.openUntitled("b.txt", "b", Language.PLAIN);
         pane.closeAllTabs();
-        assertEqual("tabs after close all", 0, pane.getTabCount());
+        assertEquals(0, pane.getTabCount(), "tabs after close all");
     }
 
-    private static void testProjectTreeFileMenu() {
+    @Test
+    void testProjectTreeFileMenu() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testProjectTreeFileMenu);
+            return;
+        }
         ProjectTreePanel tree = new ProjectTreePanel();
         AtomicReference<Path> opened = new AtomicReference<>();
         tree.setOpenFileHandler(opened::set);
@@ -83,12 +87,17 @@ public final class ContextMenuTest {
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
         JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
-        assertEqual("file menu items", List.of("Open", "Rename…", "Copy Path"), menuItemTexts(menu));
+        assertEquals(List.of("Open", "Rename…", "Copy Path"), menuItemTexts(menu), "file menu items");
         findItem(menu, "Open").doClick();
-        assertEqual("open handler path", file, opened.get());
+        assertEquals(file, opened.get(), "open handler path");
     }
 
-    private static void testProjectTreeTestFileMenu() {
+    @Test
+    void testProjectTreeTestFileMenu() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testProjectTreeTestFileMenu);
+            return;
+        }
         ProjectTreePanel tree = new ProjectTreePanel();
         AtomicReference<Path> ran = new AtomicReference<>();
         tree.setRunTestHandler(ran::set);
@@ -97,24 +106,30 @@ public final class ContextMenuTest {
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(file, false));
         JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
-        assertEqual("test file menu items",
-                List.of("Open", "Run Test", "Rename…", "Copy Path"),
-                menuItemTexts(menu));
+        assertEquals(List.of("Open", "Run Test", "Rename…", "Copy Path"), menuItemTexts(menu), "test file menu items");
         findItem(menu, "Run Test").doClick();
-        assertEqual("run test handler path", file, ran.get());
+        assertEquals(file, ran.get(), "run test handler path");
     }
 
-    private static void testProjectTreeDirectoryMenu() {
+    @Test
+    void testProjectTreeDirectoryMenu() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testProjectTreeDirectoryMenu);
+            return;
+        }
         ProjectTreePanel tree = new ProjectTreePanel();
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(
                 new ProjectTreePanel.FileNode(Path.of("src"), true));
         JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
-        assertEqual("dir menu items",
-                List.of("New File…", "Rename…", "Copy Path", "Refresh"),
-                menuItemTexts(menu));
+        assertEquals(List.of("New File…", "Rename…", "Copy Path", "Refresh"), menuItemTexts(menu), "dir menu items");
     }
 
-    private static void testProjectTreeNewFileHandler() {
+    @Test
+    void testProjectTreeNewFileHandler() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testProjectTreeNewFileHandler);
+            return;
+        }
         ProjectTreePanel tree = new ProjectTreePanel();
         AtomicReference<Path> createdIn = new AtomicReference<>();
         tree.setNewFileHandler(createdIn::set);
@@ -124,10 +139,15 @@ public final class ContextMenuTest {
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(dir, true));
         JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
         findItem(menu, "New File…").doClick();
-        assertEqual("new file handler path", dir, createdIn.get());
+        assertEquals(dir, createdIn.get(), "new file handler path");
     }
 
-    private static void testProjectTreeRenameAndCopyPathHandlers() {
+    @Test
+    void testProjectTreeRenameAndCopyPathHandlers() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testProjectTreeRenameAndCopyPathHandlers);
+            return;
+        }
         ProjectTreePanel tree = new ProjectTreePanel();
         AtomicReference<Path> renamed = new AtomicReference<>();
         AtomicReference<Path> copied = new AtomicReference<>();
@@ -140,38 +160,51 @@ public final class ContextMenuTest {
         JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
         findItem(menu, "Rename…").doClick();
         findItem(menu, "Copy Path").doClick();
-        assertEqual("rename handler path", file, renamed.get());
-        assertEqual("copy path handler path", file, copied.get());
+        assertEquals(file, renamed.get(), "rename handler path");
+        assertEquals(file, copied.get(), "copy path handler path");
     }
 
-    private static void testProjectRootOmitsRename() {
+    @Test
+    void testProjectRootOmitsRename() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testProjectRootOmitsRename);
+            return;
+        }
         ProjectTreePanel tree = new ProjectTreePanel();
         Path root = Path.of("proj").toAbsolutePath().normalize();
         tree.openDirectory(root);
         DefaultMutableTreeNode node =
                 new DefaultMutableTreeNode(new ProjectTreePanel.FileNode(root, true));
         JPopupMenu menu = tree.createContextMenu(node).orElseThrow();
-        assertEqual("root menu items",
-                List.of("New File…", "Copy Path", "Refresh"),
-                menuItemTexts(menu));
-        assertTrue("no rename on project root", findItem(menu, "Rename…") == null);
+        assertEquals(List.of("New File…", "Copy Path", "Refresh"), menuItemTexts(menu), "root menu items");
+        assertTrue(findItem(menu, "Rename…") == null, "no rename on project root");
     }
 
-    private static void testProjectTreeLabelHasNoMenu() {
+    @Test
+    void testProjectTreeLabelHasNoMenu() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testProjectTreeLabelHasNoMenu);
+            return;
+        }
         ProjectTreePanel tree = new ProjectTreePanel();
         DefaultMutableTreeNode node = new DefaultMutableTreeNode("Loading…");
-        assertTrue("label node has no menu", tree.createContextMenu(node).isEmpty());
+        assertTrue(tree.createContextMenu(node).isEmpty(), "label node has no menu");
     }
 
-    private static void testClickInactiveTabSelectsIt() {
+    @Test
+    void testClickInactiveTabSelectsIt() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testClickInactiveTabSelectsIt);
+            return;
+        }
         EditorTabPane pane = new EditorTabPane();
         pane.openUntitled("a.txt", "a", Language.PLAIN);
         CodeEditor first = pane.getActiveEditor();
         pane.openUntitled("b.txt", "b", Language.PLAIN);
-        assertEqual("second tab active", 1, pane.getSelectedTabIndex());
+        assertEquals(1, pane.getSelectedTabIndex(), "second tab active");
 
         java.awt.Component header = pane.getTabHeaderAt(0);
-        assertTrue("tab header present", header != null);
+        assertTrue(header != null, "tab header present");
         header.dispatchEvent(new java.awt.event.MouseEvent(
                 header,
                 java.awt.event.MouseEvent.MOUSE_PRESSED,
@@ -183,15 +216,20 @@ public final class ContextMenuTest {
                 false,
                 java.awt.event.MouseEvent.BUTTON1));
 
-        assertEqual("inactive tab selected", 0, pane.getSelectedTabIndex());
-        assertEqual("first editor shown", first, pane.getActiveEditor());
+        assertEquals(0, pane.getSelectedTabIndex(), "inactive tab selected");
+        assertEquals(first, pane.getActiveEditor(), "first editor shown");
     }
 
-    private static void testTabCloseUsesXIcon() {
+    @Test
+    void testTabCloseUsesXIcon() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testTabCloseUsesXIcon);
+            return;
+        }
         EditorTabPane pane = new EditorTabPane();
         pane.openUntitled("a.txt", "a", Language.PLAIN);
         java.awt.Component header = pane.getTabHeaderAt(0);
-        assertTrue("header is panel", header instanceof javax.swing.JPanel);
+        assertTrue(header instanceof javax.swing.JPanel, "header is panel");
         javax.swing.JButton close = null;
         for (java.awt.Component child : ((javax.swing.JPanel) header).getComponents()) {
             if (child instanceof javax.swing.JButton button) {
@@ -199,9 +237,9 @@ public final class ContextMenuTest {
                 break;
             }
         }
-        assertTrue("close button present", close != null);
-        assertTrue("close uses icon", close.getIcon() instanceof EditorTabPane.TabCloseIcon);
-        assertTrue("close has no text label", close.getText() == null || close.getText().isEmpty());
+        assertTrue(close != null, "close button present");
+        assertTrue(close.getIcon() instanceof EditorTabPane.TabCloseIcon, "close uses icon");
+        assertTrue(close.getText() == null || close.getText().isEmpty(), "close has no text label");
     }
 
     private static List<String> menuItemTexts(JPopupMenu menu) {
@@ -223,24 +261,55 @@ public final class ContextMenuTest {
         return null;
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
+}
+
+/**
+ * Runs Swing test bodies on the event dispatch thread and rethrows failures
+ * on the JUnit thread. Lives in a {@code *Test} source file because Ladle
+ * compiles those for {@code ladle test}.
+ */
+final class SwingSupport {
+    @FunctionalInterface
+    interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
+    private SwingSupport() {
     }
 
-    private ContextMenuTest() {
+    static void onEdt(ThrowingRunnable action) throws Exception {
+        if (SwingUtilities.isEventDispatchThread()) {
+            action.run();
+            return;
+        }
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                try {
+                    action.run();
+                } catch (Throwable thrown) {
+                    failure.set(thrown);
+                }
+            });
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw ex;
+        } catch (InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof Exception exception) {
+                throw exception;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw ex;
+        }
+        Throwable thrown = failure.get();
+        if (thrown instanceof Exception exception) {
+            throw exception;
+        }
+        if (thrown instanceof Error error) {
+            throw error;
+        }
     }
 }

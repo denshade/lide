@@ -1,5 +1,8 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
@@ -12,25 +15,13 @@ import javax.swing.SwingUtilities;
  * Tests for Shift-Shift detection.
  */
 public final class DoubleShiftHotkeysTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        SwingUtilities.invokeAndWait(() -> {
-            testDoubleShiftOpens();
-            testRequiresReleaseBetweenPresses();
-            testTimeoutDoesNotOpen();
-            testOtherKeyResets();
-            testIgnoresShiftWithCtrl();
-            testIgnoresOtherWindows();
-        });
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
+    @Test
+    void testDoubleShiftOpens() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testDoubleShiftOpens);
+            return;
         }
-    }
-
-    private static void testDoubleShiftOpens() {
         JFrame frame = new JFrame();
         JTextPane editor = new JTextPane();
         frame.add(editor);
@@ -38,17 +29,22 @@ public final class DoubleShiftHotkeysTest {
         List<String> opened = new ArrayList<>();
         long t = 1_000;
         KeyEvent first = shift(editor, KeyEvent.KEY_PRESSED, t);
-        assertTrue("first press waits", !hotkeys.dispatch(first, frame, () -> opened.add("go")));
-        assertTrue("first not consumed", !first.isConsumed());
+        assertTrue(!hotkeys.dispatch(first, frame, () -> opened.add("go")), "first press waits");
+        assertTrue(!first.isConsumed(), "first not consumed");
         hotkeys.dispatch(shift(editor, KeyEvent.KEY_RELEASED, t + 50), frame, () -> opened.add("go"));
         KeyEvent second = shift(editor, KeyEvent.KEY_PRESSED, t + 120);
-        assertTrue("second press opens", hotkeys.dispatch(second, frame, () -> opened.add("go")));
-        assertEqual("opened once", List.of("go"), opened);
-        assertTrue("second consumed", second.isConsumed());
+        assertTrue(hotkeys.dispatch(second, frame, () -> opened.add("go")), "second press opens");
+        assertEquals(List.of("go"), opened, "opened once");
+        assertTrue(second.isConsumed(), "second consumed");
         frame.dispose();
     }
 
-    private static void testRequiresReleaseBetweenPresses() {
+    @Test
+    void testRequiresReleaseBetweenPresses() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testRequiresReleaseBetweenPresses);
+            return;
+        }
         JFrame frame = new JFrame();
         JTextPane editor = new JTextPane();
         frame.add(editor);
@@ -57,12 +53,17 @@ public final class DoubleShiftHotkeysTest {
         long t = 1_000;
         hotkeys.dispatch(shift(editor, KeyEvent.KEY_PRESSED, t), frame, () -> opened.add("go"));
         KeyEvent repeat = shift(editor, KeyEvent.KEY_PRESSED, t + 30);
-        assertTrue("hold repeat ignored", !hotkeys.dispatch(repeat, frame, () -> opened.add("go")));
-        assertEqual("not opened", List.of(), opened);
+        assertTrue(!hotkeys.dispatch(repeat, frame, () -> opened.add("go")), "hold repeat ignored");
+        assertEquals(List.of(), opened, "not opened");
         frame.dispose();
     }
 
-    private static void testTimeoutDoesNotOpen() {
+    @Test
+    void testTimeoutDoesNotOpen() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testTimeoutDoesNotOpen);
+            return;
+        }
         JFrame frame = new JFrame();
         JTextPane editor = new JTextPane();
         frame.add(editor);
@@ -72,12 +73,17 @@ public final class DoubleShiftHotkeysTest {
         hotkeys.dispatch(shift(editor, KeyEvent.KEY_PRESSED, t), frame, () -> opened.add("go"));
         hotkeys.dispatch(shift(editor, KeyEvent.KEY_RELEASED, t + 10), frame, () -> opened.add("go"));
         KeyEvent late = shift(editor, KeyEvent.KEY_PRESSED, t + DoubleShiftHotkeys.TIMEOUT_MS + 50);
-        assertTrue("late second is a new first tap", !hotkeys.dispatch(late, frame, () -> opened.add("go")));
-        assertEqual("not opened", List.of(), opened);
+        assertTrue(!hotkeys.dispatch(late, frame, () -> opened.add("go")), "late second is a new first tap");
+        assertEquals(List.of(), opened, "not opened");
         frame.dispose();
     }
 
-    private static void testOtherKeyResets() {
+    @Test
+    void testOtherKeyResets() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testOtherKeyResets);
+            return;
+        }
         JFrame frame = new JFrame();
         JTextPane editor = new JTextPane();
         frame.add(editor);
@@ -91,13 +97,17 @@ public final class DoubleShiftHotkeysTest {
                 KeyEvent.VK_A, 'A');
         hotkeys.dispatch(letter, frame, () -> opened.add("go"));
         KeyEvent secondShift = shift(editor, KeyEvent.KEY_PRESSED, t + 80);
-        assertTrue("shift after letter is not double-shift",
-                !hotkeys.dispatch(secondShift, frame, () -> opened.add("go")));
-        assertEqual("not opened", List.of(), opened);
+        assertTrue(!hotkeys.dispatch(secondShift, frame, () -> opened.add("go")), "shift after letter is not double-shift");
+        assertEquals(List.of(), opened, "not opened");
         frame.dispose();
     }
 
-    private static void testIgnoresShiftWithCtrl() {
+    @Test
+    void testIgnoresShiftWithCtrl() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testIgnoresShiftWithCtrl);
+            return;
+        }
         JFrame frame = new JFrame();
         JTextPane editor = new JTextPane();
         frame.add(editor);
@@ -107,12 +117,17 @@ public final class DoubleShiftHotkeysTest {
                 editor, KeyEvent.KEY_PRESSED, 1_000,
                 InputEvent.SHIFT_DOWN_MASK | InputEvent.CTRL_DOWN_MASK,
                 KeyEvent.VK_SHIFT, KeyEvent.CHAR_UNDEFINED);
-        assertTrue("ctrl-shift ignored", !hotkeys.dispatch(event, frame, () -> opened.add("go")));
-        assertEqual("not opened", List.of(), opened);
+        assertTrue(!hotkeys.dispatch(event, frame, () -> opened.add("go")), "ctrl-shift ignored");
+        assertEquals(List.of(), opened, "not opened");
         frame.dispose();
     }
 
-    private static void testIgnoresOtherWindows() {
+    @Test
+    void testIgnoresOtherWindows() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testIgnoresOtherWindows);
+            return;
+        }
         JFrame frame = new JFrame();
         JFrame other = new JFrame();
         JTextPane editor = new JTextPane();
@@ -122,9 +137,8 @@ public final class DoubleShiftHotkeysTest {
         long t = 1_000;
         hotkeys.dispatch(shift(editor, KeyEvent.KEY_PRESSED, t), frame, () -> opened.add("go"));
         hotkeys.dispatch(shift(editor, KeyEvent.KEY_RELEASED, t + 10), frame, () -> opened.add("go"));
-        assertTrue("other window ignored",
-                !hotkeys.dispatch(shift(editor, KeyEvent.KEY_PRESSED, t + 40), frame, () -> opened.add("go")));
-        assertEqual("not opened", List.of(), opened);
+        assertTrue(!hotkeys.dispatch(shift(editor, KeyEvent.KEY_PRESSED, t + 40), frame, () -> opened.add("go")), "other window ignored");
+        assertEquals(List.of(), opened, "not opened");
         frame.dispose();
         other.dispose();
     }
@@ -139,24 +153,4 @@ public final class DoubleShiftHotkeysTest {
                 KeyEvent.CHAR_UNDEFINED);
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private DoubleShiftHotkeysTest() {
-    }
 }

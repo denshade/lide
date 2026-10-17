@@ -153,6 +153,9 @@ public final class MainFrame extends JFrame {
         newFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));
         newFile.addActionListener(e -> promptNewFile(projectTree.getSelectedDirectory()));
 
+        JMenuItem newJavaClass = new JMenuItem("New Java Class…");
+        newJavaClass.addActionListener(e -> promptNewJavaClass());
+
         JMenuItem openDir = new JMenuItem("Open Directory…");
         openDir.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O,
                 InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK));
@@ -200,6 +203,7 @@ public final class MainFrame extends JFrame {
         exit.addActionListener(e -> exitIde());
 
         file.add(newFile);
+        file.add(newJavaClass);
         file.addSeparator();
         file.add(openDir);
         file.add(openRecentMenu);
@@ -570,9 +574,8 @@ public final class MainFrame extends JFrame {
     }
 
     private Path chooseJavaHome() {
-        JFileChooser chooser = new JFileChooser();
+        PathFileChooser chooser = new PathFileChooser(JFileChooser.DIRECTORIES_ONLY);
         chooser.setDialogTitle("Select JAVA_HOME (JDK folder with bin/javac)");
-        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         Path start = JavaHome.configured();
         if (start == null) {
             String env = System.getenv("JAVA_HOME");
@@ -752,9 +755,8 @@ public final class MainFrame extends JFrame {
     }
 
     private Path chooseLadleDistribution(Path projectRoot) {
-        JFileChooser chooser = new JFileChooser();
+        PathFileChooser chooser = new PathFileChooser(JFileChooser.DIRECTORIES_ONLY);
         chooser.setDialogTitle("Select a Ladle distribution (folder with lib/ladle.jar)");
-        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         chooser.setAcceptAllFileFilterUsed(false);
         Path start = projectRoot.getParent() != null ? projectRoot.getParent() : projectRoot;
         chooser.setCurrentDirectory(start.toFile());
@@ -934,6 +936,61 @@ public final class MainFrame extends JFrame {
         createNewFileIn(directory, name);
     }
 
+    void promptNewJavaClass() {
+        Path directory = projectTree.getSelectedDirectory();
+        if (directory == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Open a project directory first.",
+                    "New Java Class",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        String name = JOptionPane.showInputDialog(
+                this,
+                "Class name:",
+                "New Java Class",
+                JOptionPane.PLAIN_MESSAGE);
+        if (name == null) {
+            return;
+        }
+        createNewJavaClass(directory, name);
+    }
+
+    Path createNewJavaClass(Path directory, String className) {
+        try {
+            NewJavaClass.Namespace namespace = NewJavaClass.namespaceFor(
+                    projectTree.getProjectRoot(), directory);
+            Path created = NewJavaClass.create(
+                    namespace.directory(), namespace.packageName(), className);
+            projectTree.refreshDirectory(namespace.directory());
+            scriptsPanel.refresh();
+            editors.openFile(created);
+            CodeEditor editor = editors.getActiveEditor();
+            if (editor != null) {
+                editor.getTextPane().requestFocusInWindow();
+            }
+            updateStatus();
+            return created;
+        } catch (java.nio.file.FileAlreadyExistsException ex) {
+            AppLog.exception("New Java class already exists", ex);
+            JOptionPane.showMessageDialog(
+                    this,
+                    "A file with that name already exists.",
+                    "New Java Class",
+                    JOptionPane.WARNING_MESSAGE);
+            return null;
+        } catch (IllegalArgumentException | IOException ex) {
+            AppLog.exception("Could not create Java class", ex);
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Could not create class:\n" + ex.getMessage(),
+                    "New Java Class",
+                    JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+    }
+
     Path createNewFileIn(Path directory, String name) {
         try {
             Path created = NewFile.create(directory, name);
@@ -1031,9 +1088,8 @@ public final class MainFrame extends JFrame {
     }
 
     private void openDirectory() {
-        JFileChooser chooser = new JFileChooser();
+        PathFileChooser chooser = new PathFileChooser(JFileChooser.DIRECTORIES_ONLY);
         chooser.setDialogTitle("Open Directory");
-        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         chooser.setAcceptAllFileFilterUsed(false);
         Path current = projectTree.getProjectRoot();
         if (current != null) {
@@ -1077,9 +1133,8 @@ public final class MainFrame extends JFrame {
     }
 
     private void openFileDialog() {
-        JFileChooser chooser = new JFileChooser();
+        PathFileChooser chooser = new PathFileChooser(JFileChooser.FILES_ONLY);
         chooser.setDialogTitle("Open File");
-        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
         Path current = projectTree.getProjectRoot();
         if (current != null) {
             chooser.setCurrentDirectory(current.toFile());

@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.Assumptions;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,28 +16,9 @@ import java.util.zip.ZipFile;
  * Tests for native application image packaging.
  */
 public final class AppPackagerTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testClassesDirectoryPrefersOut();
-        testClassesDirectoryFallsBackToLadle();
-        testClassesDirectoryMissing();
-        testCreateJarWritesMainClassAndEntries();
-        testCommandForWindowsUsesIcoAndSkipsMacFlags();
-        testCommandForMacUsesIcnsAndIdentifier();
-        testCommandForOmitsMissingIcon();
-        testOutputPath();
-        testPackageAppRequiresClasses();
-        testJpackageExecutableWhenJdkPresent();
-        testCurrentPlatformMatchesOs();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testClassesDirectoryPrefersOut() throws Exception {
+    @Test
+    void testClassesDirectoryPrefersOut() throws Exception {
         Path root = Files.createTempDirectory("lide-pack-out");
         try {
             Path cls = root.resolve("out").resolve("lide").resolve("LideApp.class");
@@ -41,36 +27,37 @@ public final class AppPackagerTest {
             Path ladle = root.resolve("build").resolve("classes").resolve("lide").resolve("LideApp.class");
             Files.createDirectories(ladle.getParent());
             Files.writeString(ladle, "ladle");
-            assertEqual("prefers out", root.resolve("out"), AppPackager.classesDirectory(root));
+            assertEquals(root.resolve("out"), AppPackager.classesDirectory(root), "prefers out");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testClassesDirectoryFallsBackToLadle() throws Exception {
+    @Test
+    void testClassesDirectoryFallsBackToLadle() throws Exception {
         Path root = Files.createTempDirectory("lide-pack-ladle");
         try {
             Path ladle = root.resolve("build").resolve("classes").resolve("lide").resolve("LideApp.class");
             Files.createDirectories(ladle.getParent());
             Files.writeString(ladle, "ladle");
-            assertEqual("ladle classes",
-                    root.resolve("build").resolve("classes"),
-                    AppPackager.classesDirectory(root));
+            assertEquals(root.resolve("build").resolve("classes"), AppPackager.classesDirectory(root), "ladle classes");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testClassesDirectoryMissing() throws Exception {
+    @Test
+    void testClassesDirectoryMissing() throws Exception {
         Path root = Files.createTempDirectory("lide-pack-missing");
         try {
-            assertTrue("null when missing", AppPackager.classesDirectory(root) == null);
+            assertTrue(AppPackager.classesDirectory(root) == null, "null when missing");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCreateJarWritesMainClassAndEntries() throws Exception {
+    @Test
+    void testCreateJarWritesMainClassAndEntries() throws Exception {
         Path dir = Files.createTempDirectory("lide-pack-jar");
         try {
             Path classes = dir.resolve("classes");
@@ -81,21 +68,22 @@ public final class AppPackagerTest {
             Files.writeString(pkg.resolve("icons").resolve("lide-16.png"), "png");
             Path jar = dir.resolve("lide.jar");
             AppPackager.createJar(classes, jar);
-            assertTrue("jar exists", Files.size(jar) > 0);
+            assertTrue(Files.size(jar) > 0, "jar exists");
             try (ZipFile zip = new ZipFile(jar.toFile())) {
                 ZipEntry manifest = zip.getEntry("META-INF/MANIFEST.MF");
-                assertTrue("manifest", manifest != null);
+                assertTrue(manifest != null, "manifest");
                 String text = new String(zip.getInputStream(manifest).readAllBytes(), StandardCharsets.UTF_8);
-                assertTrue("main class", text.contains("Main-Class: lide.LideApp"));
-                assertTrue("class entry", zip.getEntry("lide/LideApp.class") != null);
-                assertTrue("icon entry", zip.getEntry("lide/icons/lide-16.png") != null);
+                assertTrue(text.contains("Main-Class: lide.LideApp"), "main class");
+                assertTrue(zip.getEntry("lide/LideApp.class") != null, "class entry");
+                assertTrue(zip.getEntry("lide/icons/lide-16.png") != null, "icon entry");
             }
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testCommandForWindowsUsesIcoAndSkipsMacFlags() throws Exception {
+    @Test
+    void testCommandForWindowsUsesIcoAndSkipsMacFlags() throws Exception {
         Path dir = Files.createTempDirectory("lide-pack-win-cmd");
         try {
             Path icon = dir.resolve("lide.ico");
@@ -106,21 +94,20 @@ public final class AppPackagerTest {
                     dir.resolve("dist"),
                     icon,
                     AppPackager.Platform.WINDOWS);
-            assertTrue("type", command.contains("app-image"));
-            assertTrue("name", command.contains("Lide"));
-            assertTrue("main class", command.contains("lide.LideApp"));
-            assertTrue("main jar", command.contains("lide.jar"));
-            assertTrue("icon", command.contains(icon.toAbsolutePath().normalize().toString()));
-            assertTrue("no mac identifier", !command.contains("--mac-package-identifier"));
-            assertEqual("icon flag before path",
-                    "--icon",
-                    command.get(command.indexOf(icon.toAbsolutePath().normalize().toString()) - 1));
+            assertTrue(command.contains("app-image"), "type");
+            assertTrue(command.contains("Lide"), "name");
+            assertTrue(command.contains("lide.LideApp"), "main class");
+            assertTrue(command.contains("lide.jar"), "main jar");
+            assertTrue(command.contains(icon.toAbsolutePath().normalize().toString()), "icon");
+            assertTrue(!command.contains("--mac-package-identifier"), "no mac identifier");
+            assertEquals("--icon", command.get(command.indexOf(icon.toAbsolutePath().normalize().toString()) - 1), "icon flag before path");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testCommandForMacUsesIcnsAndIdentifier() throws Exception {
+    @Test
+    void testCommandForMacUsesIcnsAndIdentifier() throws Exception {
         Path dir = Files.createTempDirectory("lide-pack-mac-cmd");
         try {
             Path icon = dir.resolve("lide.icns");
@@ -131,16 +118,17 @@ public final class AppPackagerTest {
                     dir.resolve("dist"),
                     icon,
                     AppPackager.Platform.MACOS);
-            assertTrue("icns", command.contains(icon.toAbsolutePath().normalize().toString()));
-            assertTrue("identifier flag", command.contains("--mac-package-identifier"));
-            assertTrue("identifier", command.contains("lide.Lide"));
-            assertTrue("category", command.contains("public.app-category.developer-tools"));
+            assertTrue(command.contains(icon.toAbsolutePath().normalize().toString()), "icns");
+            assertTrue(command.contains("--mac-package-identifier"), "identifier flag");
+            assertTrue(command.contains("lide.Lide"), "identifier");
+            assertTrue(command.contains("public.app-category.developer-tools"), "category");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testCommandForOmitsMissingIcon() throws Exception {
+    @Test
+    void testCommandForOmitsMissingIcon() throws Exception {
         Path dir = Files.createTempDirectory("lide-pack-no-icon");
         try {
             List<String> command = AppPackager.commandFor(
@@ -149,38 +137,38 @@ public final class AppPackagerTest {
                     dir.resolve("dist"),
                     dir.resolve("missing.ico"),
                     AppPackager.Platform.LINUX);
-            assertTrue("no icon flag", !command.contains("--icon"));
-            assertTrue("no mac flags on linux", !command.contains("--mac-package-identifier"));
+            assertTrue(!command.contains("--icon"), "no icon flag");
+            assertTrue(!command.contains("--mac-package-identifier"), "no mac flags on linux");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testOutputPath() throws Exception {
+    @Test
+    void testOutputPath() throws Exception {
         Path dest = Path.of("dist");
-        assertEqual("windows", dest.resolve("Lide"), AppPackager.Platform.WINDOWS.outputPath(dest));
-        assertEqual("linux", dest.resolve("Lide"), AppPackager.Platform.LINUX.outputPath(dest));
-        assertEqual("mac", dest.resolve("Lide.app"), AppPackager.Platform.MACOS.outputPath(dest));
-        assertEqual("windows icon", "lide.ico", AppPackager.Platform.WINDOWS.iconFileName());
-        assertEqual("mac icon", "lide.icns", AppPackager.Platform.MACOS.iconFileName());
-        assertEqual("linux icon", "lide.png", AppPackager.Platform.LINUX.iconFileName());
+        assertEquals(dest.resolve("Lide"), AppPackager.Platform.WINDOWS.outputPath(dest), "windows");
+        assertEquals(dest.resolve("Lide"), AppPackager.Platform.LINUX.outputPath(dest), "linux");
+        assertEquals(dest.resolve("Lide.app"), AppPackager.Platform.MACOS.outputPath(dest), "mac");
+        assertEquals("lide.ico", AppPackager.Platform.WINDOWS.iconFileName(), "windows icon");
+        assertEquals("lide.icns", AppPackager.Platform.MACOS.iconFileName(), "mac icon");
+        assertEquals("lide.png", AppPackager.Platform.LINUX.iconFileName(), "linux icon");
     }
 
-    private static void testPackageAppRequiresClasses() throws Exception {
+    @Test
+    void testPackageAppRequiresClasses() throws Exception {
         Path root = Files.createTempDirectory("lide-pack-require");
         try {
-            AppPackager.packageApp(root, AppPackager.Platform.WINDOWS);
-            failed++;
-            System.err.println("FAIL expected IllegalStateException for missing classes");
-        } catch (IllegalStateException ex) {
-            passed++;
-            assertTrue("mentions build", ex.getMessage().contains("compiled classes"));
+            IllegalStateException ex = assertThrows(IllegalStateException.class,
+                    () -> AppPackager.packageApp(root, AppPackager.Platform.WINDOWS));
+            assertTrue(ex.getMessage().contains("compiled classes"), "mentions build");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testJpackageExecutableWhenJdkPresent() {
+    @Test
+    void testJpackageExecutableWhenJdkPresent() throws Exception {
         Path javaHome = Path.of(System.getProperty("java.home", ""));
         String exe = ScriptCommand.isWindows() ? "jpackage.exe" : "jpackage";
         boolean present = Files.isRegularFile(javaHome.resolve("bin").resolve(exe));
@@ -188,22 +176,20 @@ public final class AppPackagerTest {
             Path parent = javaHome.getParent();
             present = parent != null && Files.isRegularFile(parent.resolve("bin").resolve(exe));
         }
-        if (present) {
-            Path found = AppPackager.jpackageExecutable();
-            assertTrue("found jpackage", found != null && Files.isRegularFile(found));
-        } else {
-            passed++;
-        }
+        Assumptions.assumeTrue(present, "jpackage is not on this JDK");
+        Path found = AppPackager.jpackageExecutable();
+        assertTrue(found != null && Files.isRegularFile(found), "found jpackage");
     }
 
-    private static void testCurrentPlatformMatchesOs() {
+    @Test
+    void testCurrentPlatformMatchesOs() throws Exception {
         if (ScriptCommand.isWindows()) {
-            assertEqual("windows current", AppPackager.Platform.WINDOWS, AppPackager.Platform.current());
-            assertTrue("not mac", !ScriptCommand.isMac());
+            assertEquals(AppPackager.Platform.WINDOWS, AppPackager.Platform.current(), "windows current");
+            assertTrue(!ScriptCommand.isMac(), "not mac");
         } else if (ScriptCommand.isMac()) {
-            assertEqual("mac current", AppPackager.Platform.MACOS, AppPackager.Platform.current());
+            assertEquals(AppPackager.Platform.MACOS, AppPackager.Platform.current(), "mac current");
         } else {
-            assertEqual("linux current", AppPackager.Platform.LINUX, AppPackager.Platform.current());
+            assertEquals(AppPackager.Platform.LINUX, AppPackager.Platform.current(), "linux current");
         }
     }
 
@@ -219,24 +205,4 @@ public final class AppPackagerTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private AppPackagerTest() {
-    }
 }

@@ -1,5 +1,8 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -8,22 +11,9 @@ import java.util.List;
  * Tests for persisted project directory history.
  */
 public final class ProjectHistoryTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testRememberOrdersMostRecentFirst();
-        testRememberDedupesAndMovesToFront();
-        testRespectsLimit();
-        testPersistsAcrossInstances();
-        testRemoveAndClear();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testRememberOrdersMostRecentFirst() throws Exception {
+    @Test
+    void testRememberOrdersMostRecentFirst() throws Exception {
         Path file = Files.createTempFile("lide-history-", ".txt");
         try {
             ProjectHistory history = new ProjectHistory(file, 10);
@@ -31,13 +21,14 @@ public final class ProjectHistoryTest {
             Path b = Path.of("C:/projects/b").toAbsolutePath().normalize();
             history.remember(a);
             history.remember(b);
-            assertEqual("order", List.of(b, a), history.entries());
+            assertEquals(List.of(b, a), history.entries(), "order");
         } finally {
             Files.deleteIfExists(file);
         }
     }
 
-    private static void testRememberDedupesAndMovesToFront() throws Exception {
+    @Test
+    void testRememberDedupesAndMovesToFront() throws Exception {
         Path file = Files.createTempFile("lide-history-", ".txt");
         try {
             ProjectHistory history = new ProjectHistory(file, 10);
@@ -46,13 +37,14 @@ public final class ProjectHistoryTest {
             history.remember(a);
             history.remember(b);
             history.remember(a);
-            assertEqual("dedupe", List.of(a, b), history.entries());
+            assertEquals(List.of(a, b), history.entries(), "dedupe");
         } finally {
             Files.deleteIfExists(file);
         }
     }
 
-    private static void testRespectsLimit() throws Exception {
+    @Test
+    void testRespectsLimit() throws Exception {
         Path file = Files.createTempFile("lide-history-", ".txt");
         try {
             ProjectHistory history = new ProjectHistory(file, 2);
@@ -62,26 +54,28 @@ public final class ProjectHistoryTest {
             history.remember(a);
             history.remember(b);
             history.remember(c);
-            assertEqual("limit", List.of(c, b), history.entries());
+            assertEquals(List.of(c, b), history.entries(), "limit");
         } finally {
             Files.deleteIfExists(file);
         }
     }
 
-    private static void testPersistsAcrossInstances() throws Exception {
+    @Test
+    void testPersistsAcrossInstances() throws Exception {
         Path file = Files.createTempFile("lide-history-", ".txt");
         try {
             Path a = Path.of("C:/projects/persist").toAbsolutePath().normalize();
             ProjectHistory first = new ProjectHistory(file, 10);
             first.remember(a);
             ProjectHistory second = new ProjectHistory(file, 10);
-            assertEqual("persisted", List.of(a), second.entries());
+            assertEquals(List.of(a), second.entries(), "persisted");
         } finally {
             Files.deleteIfExists(file);
         }
     }
 
-    private static void testRemoveAndClear() throws Exception {
+    @Test
+    void testRemoveAndClear() throws Exception {
         Path file = Files.createTempFile("lide-history-", ".txt");
         try {
             ProjectHistory history = new ProjectHistory(file, 10);
@@ -90,25 +84,14 @@ public final class ProjectHistoryTest {
             history.remember(a);
             history.remember(b);
             history.remove(a);
-            assertEqual("after remove", List.of(b), history.entries());
+            assertEquals(List.of(b), history.entries(), "after remove");
             history.clear();
-            assertEqual("after clear", List.of(), history.entries());
+            assertEquals(List.of(), history.entries(), "after clear");
             ProjectHistory reloaded = new ProjectHistory(file, 10);
-            assertEqual("clear persisted", List.of(), reloaded.entries());
+            assertEquals(List.of(), reloaded.entries(), "clear persisted");
         } finally {
             Files.deleteIfExists(file);
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private ProjectHistoryTest() {
-    }
 }

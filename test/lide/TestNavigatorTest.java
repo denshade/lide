@@ -1,5 +1,8 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -8,68 +11,54 @@ import java.util.Optional;
  * Tests for pairing a class file with its test file by name.
  */
 public final class TestNavigatorTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testFileNameMapping();
-        testImplementationFileNameMapping();
-        testAlreadyTestHasNoTestCounterpart();
-        testStemNamedTestIsNotAPair();
-        testIsTestJavaFile();
-        testFindsTestInSrcTestLayout();
-        testFindsImplementationInSrcTestLayout();
-        testMissingCounterpartIsEmpty();
-        testRequiresProjectRoot();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @Test
+    void testFileNameMapping() throws Exception {
+        assertEquals("FooTest.java", TestNavigator.testFileName("Foo.java"), "java");
+        assertEquals("FooTest.py", TestNavigator.testFileName("Foo.py"), "py");
+        assertEquals(null, TestNavigator.testFileName("FooTest.java"), "already test");
+        assertEquals(null, TestNavigator.testFileName("Foo"), "no extension");
+        assertEquals(null, TestNavigator.testFileName(null), "null");
+        assertTrue(TestNavigator.testFileName("Latest.java") != null, "Latest is not a test");
+        assertEquals("LatestTest.java", TestNavigator.testFileName("Latest.java"), "Latest test name");
     }
 
-    private static void testFileNameMapping() {
-        assertEqual("java", "FooTest.java", TestNavigator.testFileName("Foo.java"));
-        assertEqual("py", "FooTest.py", TestNavigator.testFileName("Foo.py"));
-        assertEqual("already test", null, TestNavigator.testFileName("FooTest.java"));
-        assertEqual("no extension", null, TestNavigator.testFileName("Foo"));
-        assertEqual("null", null, TestNavigator.testFileName(null));
-        assertTrue("Latest is not a test", TestNavigator.testFileName("Latest.java") != null);
-        assertEqual("Latest test name", "LatestTest.java", TestNavigator.testFileName("Latest.java"));
+    @Test
+    void testImplementationFileNameMapping() throws Exception {
+        assertEquals("Foo.java", TestNavigator.implementationFileName("FooTest.java"), "java");
+        assertEquals("Foo.py", TestNavigator.implementationFileName("FooTest.py"), "py");
+        assertEquals(null, TestNavigator.implementationFileName("Foo.java"), "not a test");
+        assertEquals(null, TestNavigator.implementationFileName("FooTests.java"), "Tests plural");
+        assertEquals("A.java", TestNavigator.implementationFileName("ATest.java"), "ATest");
     }
 
-    private static void testImplementationFileNameMapping() {
-        assertEqual("java", "Foo.java", TestNavigator.implementationFileName("FooTest.java"));
-        assertEqual("py", "Foo.py", TestNavigator.implementationFileName("FooTest.py"));
-        assertEqual("not a test", null, TestNavigator.implementationFileName("Foo.java"));
-        assertEqual("Tests plural", null, TestNavigator.implementationFileName("FooTests.java"));
-        assertEqual("ATest", "A.java", TestNavigator.implementationFileName("ATest.java"));
+    @Test
+    void testAlreadyTestHasNoTestCounterpart() throws Exception {
+        assertEquals(null, TestNavigator.testFileName("FooTest.java"), "FooTest");
+        assertTrue(TestNavigator.isTestStem("FooTest"), "is test stem");
+        assertTrue(!TestNavigator.isTestStem("Foo"), "Foo is not test stem");
+        assertTrue(!TestNavigator.isTestStem("Latest"), "Latest is not test stem");
     }
 
-    private static void testAlreadyTestHasNoTestCounterpart() {
-        assertEqual("FooTest", null, TestNavigator.testFileName("FooTest.java"));
-        assertTrue("is test stem", TestNavigator.isTestStem("FooTest"));
-        assertTrue("Foo is not test stem", !TestNavigator.isTestStem("Foo"));
-        assertTrue("Latest is not test stem", !TestNavigator.isTestStem("Latest"));
+    @Test
+    void testStemNamedTestIsNotAPair() throws Exception {
+        assertTrue(!TestNavigator.isTestStem("Test"), "Test.java is not a test pair");
+        assertEquals(null, TestNavigator.implementationFileName("Test.java"), "Test.java implementation");
+        assertEquals("TestTest.java", TestNavigator.testFileName("Test.java"), "Test.java test");
     }
 
-    private static void testStemNamedTestIsNotAPair() {
-        assertTrue("Test.java is not a test pair", !TestNavigator.isTestStem("Test"));
-        assertEqual("Test.java implementation", null, TestNavigator.implementationFileName("Test.java"));
-        assertEqual("Test.java test", "TestTest.java", TestNavigator.testFileName("Test.java"));
+    @Test
+    void testIsTestJavaFile() throws Exception {
+        assertTrue(TestNavigator.isTestJavaFile(Path.of("test", "FooTest.java")), "FooTest.java");
+        assertTrue(TestNavigator.isTestJavaFile(Path.of("Test.java")), "Test.java");
+        assertTrue(!TestNavigator.isTestJavaFile(Path.of("src", "Foo.java")), "Foo is not a test file");
+        assertTrue(!TestNavigator.isTestJavaFile(Path.of("Latest.java")), "Latest.java is not a test file");
+        assertTrue(!TestNavigator.isTestJavaFile(Path.of("FooTests.java")), "FooTests.java is not *Test.java");
+        assertTrue(!TestNavigator.isTestJavaFile(null), "null path");
     }
 
-    private static void testIsTestJavaFile() {
-        assertTrue("FooTest.java", TestNavigator.isTestJavaFile(Path.of("test", "FooTest.java")));
-        assertTrue("Test.java", TestNavigator.isTestJavaFile(Path.of("Test.java")));
-        assertTrue("Foo is not a test file", !TestNavigator.isTestJavaFile(Path.of("src", "Foo.java")));
-        assertTrue("Latest.java is not a test file",
-                !TestNavigator.isTestJavaFile(Path.of("Latest.java")));
-        assertTrue("FooTests.java is not *Test.java",
-                !TestNavigator.isTestJavaFile(Path.of("FooTests.java")));
-        assertTrue("null path", !TestNavigator.isTestJavaFile(null));
-    }
-
-    private static void testFindsTestInSrcTestLayout() throws Exception {
+    @Test
+    void testFindsTestInSrcTestLayout() throws Exception {
         Path root = Files.createTempDirectory("lide-test-nav");
         try {
             Path src = root.resolve("src").resolve("lide");
@@ -81,14 +70,15 @@ public final class TestNavigatorTest {
             Files.writeString(impl, "class Foo {}");
             Files.writeString(testFile, "class FooTest {}");
             Optional<Path> found = TestNavigator.findTest(root, impl);
-            assertTrue("found test", found.isPresent());
-            assertEqual("test path", testFile.toAbsolutePath().normalize(), found.get());
+            assertTrue(found.isPresent(), "found test");
+            assertEquals(testFile.toAbsolutePath().normalize(), found.get(), "test path");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testFindsImplementationInSrcTestLayout() throws Exception {
+    @Test
+    void testFindsImplementationInSrcTestLayout() throws Exception {
         Path root = Files.createTempDirectory("lide-impl-nav");
         try {
             Path src = root.resolve("src").resolve("lide");
@@ -100,31 +90,33 @@ public final class TestNavigatorTest {
             Files.writeString(impl, "class Foo {}");
             Files.writeString(testFile, "class FooTest {}");
             Optional<Path> found = TestNavigator.findImplementation(root, testFile);
-            assertTrue("found impl", found.isPresent());
-            assertEqual("impl path", impl.toAbsolutePath().normalize(), found.get());
+            assertTrue(found.isPresent(), "found impl");
+            assertEquals(impl.toAbsolutePath().normalize(), found.get(), "impl path");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testMissingCounterpartIsEmpty() throws Exception {
+    @Test
+    void testMissingCounterpartIsEmpty() throws Exception {
         Path root = Files.createTempDirectory("lide-test-nav-missing");
         try {
             Path src = root.resolve("src");
             Files.createDirectories(src);
             Path impl = src.resolve("Lonely.java");
             Files.writeString(impl, "class Lonely {}");
-            assertTrue("no test", TestNavigator.findTest(root, impl).isEmpty());
-            assertTrue("no impl from source", TestNavigator.findImplementation(root, impl).isEmpty());
+            assertTrue(TestNavigator.findTest(root, impl).isEmpty(), "no test");
+            assertTrue(TestNavigator.findImplementation(root, impl).isEmpty(), "no impl from source");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testRequiresProjectRoot() throws Exception {
+    @Test
+    void testRequiresProjectRoot() throws Exception {
         Path file = Files.createTempFile("Foo", ".java");
         try {
-            assertTrue("no root", TestNavigator.findTest(null, file).isEmpty());
+            assertTrue(TestNavigator.findTest(null, file).isEmpty(), "no root");
         } finally {
             Files.deleteIfExists(file);
         }
@@ -142,24 +134,4 @@ public final class TestNavigatorTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private TestNavigatorTest() {
-    }
 }

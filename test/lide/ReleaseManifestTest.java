@@ -1,5 +1,8 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -8,28 +11,19 @@ import java.nio.file.Path;
  * The fat JAR must ship a spec-compliant manifest so {@code java -jar} can start Lide.
  */
 public final class ReleaseManifestTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testCommittedManifestDeclaresMainClass();
-        testCreateJarManifestIsRunnable();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testCommittedManifestDeclaresMainClass() throws Exception {
+    @Test
+    void testCommittedManifestDeclaresMainClass() throws Exception {
         Path manifest = Path.of("manifest", "MANIFEST.MF");
-        assertTrue("committed manifest", Files.isRegularFile(manifest));
+        assertTrue(Files.isRegularFile(manifest), "committed manifest");
         String text = Files.readString(manifest, StandardCharsets.UTF_8);
-        assertTrue("manifest version first", text.startsWith("Manifest-Version: 1.0"));
-        assertTrue("main class", text.contains("Main-Class: lide.LideApp"));
-        assertTrue("ends with newline", text.endsWith("\n"));
+        assertTrue(text.startsWith("Manifest-Version: 1.0"), "manifest version first");
+        assertTrue(text.contains("Main-Class: lide.LideApp"), "main class");
+        assertTrue(text.endsWith("\n"), "ends with newline");
     }
 
-    private static void testCreateJarManifestIsRunnable() throws Exception {
+    @Test
+    void testCreateJarManifestIsRunnable() throws Exception {
         Path dir = Files.createTempDirectory("lide-release-manifest");
         try {
             Path classes = dir.resolve("classes");
@@ -40,10 +34,10 @@ public final class ReleaseManifestTest {
             AppPackager.createJar(classes, jar);
             try (var zip = new java.util.zip.ZipFile(jar.toFile())) {
                 var entry = zip.getEntry("META-INF/MANIFEST.MF");
-                assertTrue("jar manifest", entry != null);
+                assertTrue(entry != null, "jar manifest");
                 String text = new String(zip.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
-                assertTrue("jar manifest version", text.contains("Manifest-Version: 1.0"));
-                assertTrue("jar main class", text.contains("Main-Class: lide.LideApp"));
+                assertTrue(text.contains("Manifest-Version: 1.0"), "jar manifest version");
+                assertTrue(text.contains("Main-Class: lide.LideApp"), "jar main class");
             }
         } finally {
             deleteRecursive(dir);
@@ -61,15 +55,4 @@ public final class ReleaseManifestTest {
         }
     }
 
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private ReleaseManifestTest() {
-    }
 }

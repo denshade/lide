@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,61 +19,57 @@ import javax.swing.SwingUtilities;
  * Tests for the Gradle menu on the main window.
  */
 public final class GradleMenuTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run Gradle menu tests");
-            return;
-        }
-        SwingUtilities.invokeAndWait(() -> {
-            testMenuItems();
-            testItemsDisabledWithoutProject();
-        });
-        testItemsEnabledForGradleProject();
-        testItemsEnabledForPlainProject();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @BeforeEach
+    void requireDisplay() {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(),
+                "headless environment cannot run GradleMenuTest");
     }
 
-    private static void testMenuItems() {
+    @Test
+    void testMenuItems() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testMenuItems);
+            return;
+        }
         MainFrame frame = new MainFrame();
         try {
             JMenu gradle = findMenu(frame.getJMenuBar(), "Gradle");
-            assertTrue("Gradle menu exists", gradle != null);
+            assertTrue(gradle != null, "Gradle menu exists");
             List<String> labels = itemLabels(gradle);
-            assertEqual("item count", 5, labels.size());
-            assertEqual("build", "Build", labels.get(0));
-            assertEqual("test", "Test", labels.get(1));
-            assertEqual("release", "Release", labels.get(2));
-            assertEqual("deps", "Download Dependencies", labels.get(3));
-            assertEqual("clear", "Clear", labels.get(4));
-            assertTrue("build has no accelerator",
-                    findMenuItem(gradle, "Build").getAccelerator() == null);
-            assertTrue("test has no accelerator",
-                    findMenuItem(gradle, "Test").getAccelerator() == null);
+            assertEquals(5, labels.size(), "item count");
+            assertEquals("Build", labels.get(0), "build");
+            assertEquals("Test", labels.get(1), "test");
+            assertEquals("Release", labels.get(2), "release");
+            assertEquals("Download Dependencies", labels.get(3), "deps");
+            assertEquals("Clear", labels.get(4), "clear");
+            assertTrue(findMenuItem(gradle, "Build").getAccelerator() == null, "build has no accelerator");
+            assertTrue(findMenuItem(gradle, "Test").getAccelerator() == null, "test has no accelerator");
         } finally {
             frame.dispose();
         }
     }
 
-    private static void testItemsDisabledWithoutProject() {
+    @Test
+    void testItemsDisabledWithoutProject() throws Exception {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testItemsDisabledWithoutProject);
+            return;
+        }
         MainFrame frame = new MainFrame();
         try {
             frame.updateGradleMenu();
             JMenu gradle = findMenu(frame.getJMenuBar(), "Gradle");
             for (JMenuItem item : menuItems(gradle)) {
-                assertTrue(item.getText() + " disabled", !item.isEnabled());
+                assertTrue(!item.isEnabled(), item.getText() + " disabled");
             }
         } finally {
             frame.dispose();
         }
     }
 
-    private static void testItemsEnabledForGradleProject() throws Exception {
+    @Test
+    void testItemsEnabledForGradleProject() throws Exception {
         Path root = Files.createTempDirectory("lide-gradle-menu");
         Files.writeString(root.resolve("build.gradle"), "plugins { id 'java' }\n");
         try {
@@ -78,7 +79,7 @@ public final class GradleMenuTest {
                     frame.applyProjectDirectory(root);
                     JMenu gradle = findMenu(frame.getJMenuBar(), "Gradle");
                     for (JMenuItem item : menuItems(gradle)) {
-                        assertTrue(item.getText() + " enabled", item.isEnabled());
+                        assertTrue(item.isEnabled(), item.getText() + " enabled");
                     }
                 } finally {
                     frame.dispose();
@@ -89,7 +90,8 @@ public final class GradleMenuTest {
         }
     }
 
-    private static void testItemsEnabledForPlainProject() throws Exception {
+    @Test
+    void testItemsEnabledForPlainProject() throws Exception {
         Path root = Files.createTempDirectory("lide-plain-gradle");
         try {
             Files.writeString(root.resolve("readme.txt"), "no gradle");
@@ -99,7 +101,7 @@ public final class GradleMenuTest {
                     frame.applyProjectDirectory(root);
                     JMenu gradle = findMenu(frame.getJMenuBar(), "Gradle");
                     for (JMenuItem item : menuItems(gradle)) {
-                        assertTrue(item.getText() + " enabled when project is open", item.isEnabled());
+                        assertTrue(item.isEnabled(), item.getText() + " enabled when project is open");
                     }
                 } finally {
                     frame.dispose();
@@ -160,24 +162,4 @@ public final class GradleMenuTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private GradleMenuTest() {
-    }
 }

@@ -1,5 +1,11 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
+import org.junit.jupiter.api.Assumptions;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -8,104 +14,77 @@ import java.util.List;
  * Tests for Gradle project detection and CLI command building.
  */
 public final class GradleCommandTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testUnavailableWhenNull();
-        testUnavailableWhenMissingBuildFile();
-        testAvailableWhenBuildGradlePresent();
-        testAvailableWhenKotlinDslPresent();
-        testAvailableWhenSettingsGradlePresent();
-        testPreferredOverLadle();
-        testWrapperPathPrefersPlatformScript();
-        testCommandForBuildUsesWrapper();
-        testCommandForTestWithClassFilter();
-        testCommandForDependenciesRefreshes();
-        testCommandWithoutWrapperUsesGradle();
-        testCommandForRequiresProject();
-        testCommandForRejectsBlank();
-        testTaskForLadleCommands();
-        testTestClassFilter();
-        testGradleVersionFromWrapper();
-        testJavaRangeForGradleVersions();
-        testFeatureVersionFromReleaseFile();
-        testJdkForGradlePicksNewestSupported();
-        testApplyJavaHomeKeepsCompatible();
-        testApplyJavaHomeReplacesJava26ForOldGradle();
-        testApplyJavaHomeThrowsWhenNoCompatibleJdk();
-        testIncompatibleMessageMentionsMajorVersion();
-        testProcessBuilderSetsJavaHome();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @Test
+    void testUnavailableWhenNull() throws Exception {
+        assertTrue(!GradleCommand.isAvailable(null), "null root");
+        assertTrue(GradleCommand.projectFile(null) == null, "null project file");
+        assertTrue(GradleCommand.wrapperPath(null) == null, "null wrapper");
     }
 
-    private static void testUnavailableWhenNull() {
-        assertTrue("null root", !GradleCommand.isAvailable(null));
-        assertTrue("null project file", GradleCommand.projectFile(null) == null);
-        assertTrue("null wrapper", GradleCommand.wrapperPath(null) == null);
-    }
-
-    private static void testUnavailableWhenMissingBuildFile() throws Exception {
+    @Test
+    void testUnavailableWhenMissingBuildFile() throws Exception {
         Path root = Files.createTempDirectory("lide-gradle-empty");
         try {
             Files.writeString(root.resolve("readme.txt"), "no gradle");
-            assertTrue("no build file", !GradleCommand.isAvailable(root));
+            assertTrue(!GradleCommand.isAvailable(root), "no build file");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testAvailableWhenBuildGradlePresent() throws Exception {
+    @Test
+    void testAvailableWhenBuildGradlePresent() throws Exception {
         Path root = fakeGradleProject();
         try {
-            assertTrue("available", GradleCommand.isAvailable(root));
-            assertTrue("project file", GradleCommand.projectFile(root)
-                    .endsWith(Path.of("build.gradle")));
+            assertTrue(GradleCommand.isAvailable(root), "available");
+            assertTrue(GradleCommand.projectFile(root)
+                    .endsWith(Path.of("build.gradle")), "project file");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testAvailableWhenKotlinDslPresent() throws Exception {
+    @Test
+    void testAvailableWhenKotlinDslPresent() throws Exception {
         Path root = Files.createTempDirectory("lide-gradle-kts");
         try {
             Files.writeString(root.resolve("build.gradle.kts"), "plugins { java }\n");
-            assertTrue("kts available", GradleCommand.isAvailable(root));
-            assertTrue("kts file", GradleCommand.projectFile(root)
-                    .getFileName().toString().equals("build.gradle.kts"));
+            assertTrue(GradleCommand.isAvailable(root), "kts available");
+            assertTrue(GradleCommand.projectFile(root)
+                    .getFileName().toString().equals("build.gradle.kts"), "kts file");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testAvailableWhenSettingsGradlePresent() throws Exception {
+    @Test
+    void testAvailableWhenSettingsGradlePresent() throws Exception {
         Path root = Files.createTempDirectory("lide-gradle-settings");
         try {
             Files.writeString(root.resolve("settings.gradle"), "rootProject.name = 'demo'\n");
-            assertTrue("settings available", GradleCommand.isAvailable(root));
+            assertTrue(GradleCommand.isAvailable(root), "settings available");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testPreferredOverLadle() throws Exception {
+    @Test
+    void testPreferredOverLadle() throws Exception {
         Path gradleOnly = fakeGradleProject();
         Path ladleOnly = Files.createTempDirectory("lide-ladle-not-gradle");
         Path both = fakeGradleProject();
         try {
-            assertTrue("gradle only", GradleCommand.preferredOverLadle(gradleOnly));
+            assertTrue(GradleCommand.preferredOverLadle(gradleOnly), "gradle only");
             Files.createDirectories(ladleOnly.resolve("lib"));
             Files.writeString(ladleOnly.resolve("lib").resolve("ladle.jar"), "fake");
             Files.writeString(ladleOnly.resolve("build.ini"), "[javac]\n");
-            assertTrue("ladle only", !GradleCommand.preferredOverLadle(ladleOnly));
+            assertTrue(!GradleCommand.preferredOverLadle(ladleOnly), "ladle only");
             Files.createDirectories(both.resolve("lib"));
             Files.writeString(both.resolve("lib").resolve("ladle.jar"), "fake");
             Files.writeString(both.resolve("build.ini"), "[javac]\n");
-            assertTrue("both prefers ladle", !GradleCommand.preferredOverLadle(both));
-            assertTrue("null", !GradleCommand.preferredOverLadle(null));
+            assertTrue(!GradleCommand.preferredOverLadle(both), "both prefers ladle");
+            assertTrue(!GradleCommand.preferredOverLadle(null), "null");
         } finally {
             deleteRecursive(gradleOnly);
             deleteRecursive(ladleOnly);
@@ -113,174 +92,170 @@ public final class GradleCommandTest {
         }
     }
 
-    private static void testWrapperPathPrefersPlatformScript() throws Exception {
+    @Test
+    void testWrapperPathPrefersPlatformScript() throws Exception {
         Path root = fakeGradleProject();
         try {
             Path wrapper = GradleCommand.wrapperPath(root);
             if (ScriptCommand.isWindows()) {
-                assertTrue("windows wrapper", wrapper != null
-                        && wrapper.getFileName().toString().equals("gradlew.bat"));
+                assertTrue(wrapper != null
+                        && wrapper.getFileName().toString().equals("gradlew.bat"), "windows wrapper");
             } else {
-                assertTrue("unix wrapper", wrapper != null
-                        && wrapper.getFileName().toString().equals("gradlew"));
+                assertTrue(wrapper != null
+                        && wrapper.getFileName().toString().equals("gradlew"), "unix wrapper");
             }
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCommandForBuildUsesWrapper() throws Exception {
+    @Test
+    void testCommandForBuildUsesWrapper() throws Exception {
         Path root = fakeGradleProject();
         try {
             List<String> cmd = GradleCommand.commandFor(root, GradleCommand.BUILD);
-            assertEqual("task", GradleCommand.BUILD, taskOf(cmd));
-            assertTrue("plain console", cmd.contains(GradleCommand.CONSOLE_PLAIN));
+            assertEquals(GradleCommand.BUILD, taskOf(cmd), "task");
+            assertTrue(cmd.contains(GradleCommand.CONSOLE_PLAIN), "plain console");
             if (ScriptCommand.isWindows()) {
-                assertEqual("cmd", "cmd.exe", cmd.get(0));
-                assertEqual("/c", "/c", cmd.get(1));
-                assertEqual("wrapper", "gradlew.bat", cmd.get(2));
+                assertEquals("cmd.exe", cmd.get(0), "cmd");
+                assertEquals("/c", cmd.get(1), "/c");
+                assertEquals("gradlew.bat", cmd.get(2), "wrapper");
             } else {
-                assertEqual("sh", "sh", cmd.get(0));
-                assertTrue("gradlew path", cmd.get(1).replace('\\', '/').endsWith("/gradlew"));
+                assertEquals("sh", cmd.get(0), "sh");
+                assertTrue(cmd.get(1).replace('\\', '/').endsWith("/gradlew"), "gradlew path");
             }
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCommandForTestWithClassFilter() throws Exception {
+    @Test
+    void testCommandForTestWithClassFilter() throws Exception {
         Path root = fakeGradleProject();
         try {
             List<String> cmd = GradleCommand.commandFor(
                     root, GradleCommand.TEST, GradleCommand.TESTS_FLAG, "FooTest");
-            assertEqual("task", GradleCommand.TEST, taskOf(cmd));
+            assertEquals(GradleCommand.TEST, taskOf(cmd), "task");
             int tests = cmd.indexOf(GradleCommand.TESTS_FLAG);
-            assertTrue("--tests present", tests >= 0);
-            assertEqual("filter", "FooTest", cmd.get(tests + 1));
+            assertTrue(tests >= 0, "--tests present");
+            assertEquals("FooTest", cmd.get(tests + 1), "filter");
             List<String> skippedBlank = GradleCommand.commandFor(
                     root, GradleCommand.TEST, "  ", null);
-            assertEqual("blank extras ignored", GradleCommand.TEST, taskOf(skippedBlank));
-            assertTrue("no blank arg", !skippedBlank.contains("  "));
+            assertEquals(GradleCommand.TEST, taskOf(skippedBlank), "blank extras ignored");
+            assertTrue(!skippedBlank.contains("  "), "no blank arg");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCommandForDependenciesRefreshes() throws Exception {
+    @Test
+    void testCommandForDependenciesRefreshes() throws Exception {
         Path root = fakeGradleProject();
         try {
             List<String> cmd = GradleCommand.commandFor(root, GradleCommand.DEPENDENCY);
-            assertEqual("task", GradleCommand.DEPENDENCY, taskOf(cmd));
-            assertTrue("refresh", cmd.contains(GradleCommand.REFRESH_DEPENDENCIES));
+            assertEquals(GradleCommand.DEPENDENCY, taskOf(cmd), "task");
+            assertTrue(cmd.contains(GradleCommand.REFRESH_DEPENDENCIES), "refresh");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCommandWithoutWrapperUsesGradle() throws Exception {
+    @Test
+    void testCommandWithoutWrapperUsesGradle() throws Exception {
         Path root = Files.createTempDirectory("lide-gradle-nowrapper");
         try {
             Files.writeString(root.resolve("build.gradle"), "plugins { id 'java' }\n");
             List<String> cmd = GradleCommand.commandFor(root, GradleCommand.CLEAR);
-            assertEqual("task", GradleCommand.CLEAR, taskOf(cmd));
+            assertEquals(GradleCommand.CLEAR, taskOf(cmd), "task");
             if (ScriptCommand.isWindows()) {
-                assertEqual("cmd", "cmd.exe", cmd.get(0));
-                assertEqual("gradle", "gradle", cmd.get(2));
+                assertEquals("cmd.exe", cmd.get(0), "cmd");
+                assertEquals("gradle", cmd.get(2), "gradle");
             } else {
-                assertEqual("gradle", "gradle", cmd.get(0));
+                assertEquals("gradle", cmd.get(0), "gradle");
             }
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testCommandForRequiresProject() {
-        try {
-            GradleCommand.commandFor(null, GradleCommand.BUILD);
-            failed++;
-            System.err.println("FAIL expected exception for null project");
-        } catch (IllegalStateException ex) {
-            assertTrue("message mentions build.gradle", ex.getMessage().contains("build.gradle"));
-        }
+    @Test
+    void testCommandForRequiresProject() throws Exception {
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> GradleCommand.commandFor(null, GradleCommand.BUILD));
+        assertTrue(ex.getMessage().contains("build.gradle"), "message mentions build.gradle");
     }
 
-    private static void testCommandForRejectsBlank() throws Exception {
+    @Test
+    void testCommandForRejectsBlank() throws Exception {
         Path root = fakeGradleProject();
         try {
-            try {
-                GradleCommand.commandFor(root, "  ");
-                failed++;
-                System.err.println("FAIL expected exception for blank task");
-            } catch (IllegalArgumentException ex) {
-                assertTrue("message mentions task", ex.getMessage().contains("task"));
-            }
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> GradleCommand.commandFor(root, "  "));
+        assertTrue(ex.getMessage().contains("task"), "message mentions task");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testTaskForLadleCommands() {
-        assertEqual("build", GradleCommand.BUILD, GradleCommand.taskFor(LadleCommand.BUILD));
-        assertEqual("test", GradleCommand.TEST, GradleCommand.taskFor(LadleCommand.TEST));
-        assertEqual("release", GradleCommand.RELEASE, GradleCommand.taskFor(LadleCommand.RELEASE));
-        assertEqual("deps", GradleCommand.DEPENDENCY, GradleCommand.taskFor(LadleCommand.DEPENDENCY));
-        assertEqual("clear", GradleCommand.CLEAR, GradleCommand.taskFor(LadleCommand.CLEAR));
-        assertEqual("passthrough", "classes", GradleCommand.taskFor("classes"));
-        try {
-            GradleCommand.taskFor(" ");
-            failed++;
-            System.err.println("FAIL expected exception for blank taskFor");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-        }
+    @Test
+    void testTaskForLadleCommands() throws Exception {
+        assertEquals(GradleCommand.BUILD, GradleCommand.taskFor(LadleCommand.BUILD), "build");
+        assertEquals(GradleCommand.TEST, GradleCommand.taskFor(LadleCommand.TEST), "test");
+        assertEquals(GradleCommand.RELEASE, GradleCommand.taskFor(LadleCommand.RELEASE), "release");
+        assertEquals(GradleCommand.DEPENDENCY, GradleCommand.taskFor(LadleCommand.DEPENDENCY), "deps");
+        assertEquals(GradleCommand.CLEAR, GradleCommand.taskFor(LadleCommand.CLEAR), "clear");
+        assertEquals("classes", GradleCommand.taskFor("classes"), "passthrough");
+        assertThrows(IllegalArgumentException.class, () -> GradleCommand.taskFor(" "));
     }
 
-    private static void testTestClassFilter() {
-        assertEqual("java file", "FooTest",
-                GradleCommand.testClassFilter(Path.of("src", "test", "java", "FooTest.java")));
-        assertEqual("plain name", "FooTest", GradleCommand.testClassFilter(Path.of("FooTest")));
-        assertTrue("null", GradleCommand.testClassFilter(null) == null);
+    @Test
+    void testTestClassFilter() throws Exception {
+        assertEquals("FooTest", GradleCommand.testClassFilter(Path.of("src", "test", "java", "FooTest.java")), "java file");
+        assertEquals("FooTest", GradleCommand.testClassFilter(Path.of("FooTest")), "plain name");
+        assertTrue(GradleCommand.testClassFilter(null) == null, "null");
     }
 
-    private static void testGradleVersionFromWrapper() throws Exception {
+    @Test
+    void testGradleVersionFromWrapper() throws Exception {
         Path root = fakeGradleProject();
         try {
-            assertTrue("no wrapper props", GradleCommand.gradleVersion(root) == null);
+            assertTrue(GradleCommand.gradleVersion(root) == null, "no wrapper props");
             writeWrapper(root, "8.10.2");
-            assertEqual("version", "8.10.2", GradleCommand.gradleVersion(root));
+            assertEquals("8.10.2", GradleCommand.gradleVersion(root), "version");
             writeWrapper(root, "9.4.0");
-            assertEqual("9.4", "9.4.0", GradleCommand.gradleVersion(root));
+            assertEquals("9.4.0", GradleCommand.gradleVersion(root), "9.4");
         } finally {
             deleteRecursive(root);
         }
     }
 
-    private static void testJavaRangeForGradleVersions() {
+    @Test
+    void testJavaRangeForGradleVersions() throws Exception {
         GradleCommand.JavaRange unknown = GradleCommand.javaRangeForGradle(null);
-        assertEqual("unknown min", 8, unknown.min());
-        assertEqual("unknown max", 21, unknown.max());
-        assertEqual("8.5 max", 21, GradleCommand.javaRangeForGradle("8.5").max());
-        assertEqual("8.10 max", 23, GradleCommand.javaRangeForGradle("8.10.2").max());
-        assertEqual("8.14 max", 24, GradleCommand.javaRangeForGradle("8.14.3").max());
-        assertEqual("9.0 min", 17, GradleCommand.javaRangeForGradle("9.0.0").min());
-        assertEqual("9.1 max", 25, GradleCommand.javaRangeForGradle("9.1.0").max());
-        assertEqual("9.4 max", 26, GradleCommand.javaRangeForGradle("9.4.0").max());
-        assertTrue("8.5 allows 21", GradleCommand.javaRangeForGradle("8.5").contains(21));
-        assertTrue("8.5 rejects 26", !GradleCommand.javaRangeForGradle("8.5").contains(26));
+        assertEquals(8, unknown.min(), "unknown min");
+        assertEquals(21, unknown.max(), "unknown max");
+        assertEquals(21, GradleCommand.javaRangeForGradle("8.5").max(), "8.5 max");
+        assertEquals(23, GradleCommand.javaRangeForGradle("8.10.2").max(), "8.10 max");
+        assertEquals(24, GradleCommand.javaRangeForGradle("8.14.3").max(), "8.14 max");
+        assertEquals(17, GradleCommand.javaRangeForGradle("9.0.0").min(), "9.0 min");
+        assertEquals(25, GradleCommand.javaRangeForGradle("9.1.0").max(), "9.1 max");
+        assertEquals(26, GradleCommand.javaRangeForGradle("9.4.0").max(), "9.4 max");
+        assertTrue(GradleCommand.javaRangeForGradle("8.5").contains(21), "8.5 allows 21");
+        assertTrue(!GradleCommand.javaRangeForGradle("8.5").contains(26), "8.5 rejects 26");
     }
 
-    private static void testFeatureVersionFromReleaseFile() throws Exception {
+    @Test
+    void testFeatureVersionFromReleaseFile() throws Exception {
         Path jdk = Files.createTempDirectory("lide-fake-jdk");
         try {
             writeFakeJdk(jdk, 21);
-            assertEqual("feature", 21, GradleCommand.featureVersion(jdk));
-            assertTrue("missing", GradleCommand.featureVersion(jdk.resolve("missing")) < 0);
+            assertEquals(21, GradleCommand.featureVersion(jdk), "feature");
+            assertTrue(GradleCommand.featureVersion(jdk.resolve("missing")) < 0, "missing");
         } finally {
             deleteRecursive(jdk);
         }
     }
 
-    private static void testJdkForGradlePicksNewestSupported() throws Exception {
+    @Test
+    void testJdkForGradlePicksNewestSupported() throws Exception {
         Path root = fakeGradleProject();
         Path jdk17 = Files.createTempDirectory("lide-jdk-17");
         Path jdk21 = Files.createTempDirectory("lide-jdk-21");
@@ -291,10 +266,10 @@ public final class GradleCommandTest {
             writeFakeJdk(jdk26, 26);
             writeWrapper(root, "8.10.2");
             Path picked = GradleCommand.jdkForGradle(root, List.of(jdk17, jdk21, jdk26));
-            assertEqual("8.10 picks 21", jdk21.toAbsolutePath().normalize(), picked);
+            assertEquals(jdk21.toAbsolutePath().normalize(), picked, "8.10 picks 21");
             writeWrapper(root, "9.4.0");
             Path newest = GradleCommand.jdkForGradle(root, List.of(jdk17, jdk21, jdk26));
-            assertEqual("9.4 picks 26", jdk26.toAbsolutePath().normalize(), newest);
+            assertEquals(jdk26.toAbsolutePath().normalize(), newest, "9.4 picks 26");
         } finally {
             deleteRecursive(root);
             deleteRecursive(jdk17);
@@ -303,7 +278,8 @@ public final class GradleCommandTest {
         }
     }
 
-    private static void testApplyJavaHomeKeepsCompatible() throws Exception {
+    @Test
+    void testApplyJavaHomeKeepsCompatible() throws Exception {
         Path root = fakeGradleProject();
         Path jdk21 = Files.createTempDirectory("lide-keep-21");
         Path jdk17 = Files.createTempDirectory("lide-keep-17");
@@ -314,9 +290,7 @@ public final class GradleCommandTest {
             ProcessBuilder builder = new ProcessBuilder("gradle");
             builder.environment().put("JAVA_HOME", jdk21.toString());
             GradleCommand.applyGradleJavaHome(builder, root, List.of(jdk17, jdk21));
-            assertEqual("kept 21",
-                    Path.of(builder.environment().get("JAVA_HOME")).toAbsolutePath().normalize(),
-                    jdk21.toAbsolutePath().normalize());
+            assertEquals(Path.of(builder.environment().get("JAVA_HOME")).toAbsolutePath().normalize(), jdk21.toAbsolutePath().normalize(), "kept 21");
         } finally {
             deleteRecursive(root);
             deleteRecursive(jdk21);
@@ -324,7 +298,8 @@ public final class GradleCommandTest {
         }
     }
 
-    private static void testApplyJavaHomeReplacesJava26ForOldGradle() throws Exception {
+    @Test
+    void testApplyJavaHomeReplacesJava26ForOldGradle() throws Exception {
         Path root = fakeGradleProject();
         Path jdk21 = Files.createTempDirectory("lide-replace-21");
         Path jdk26 = Files.createTempDirectory("lide-replace-26");
@@ -335,9 +310,7 @@ public final class GradleCommandTest {
             ProcessBuilder builder = new ProcessBuilder("gradle");
             builder.environment().put("JAVA_HOME", jdk26.toString());
             GradleCommand.applyGradleJavaHome(builder, root, List.of(jdk21, jdk26));
-            assertEqual("replaced with 21",
-                    Path.of(builder.environment().get("JAVA_HOME")).toAbsolutePath().normalize(),
-                    jdk21.toAbsolutePath().normalize());
+            assertEquals(Path.of(builder.environment().get("JAVA_HOME")).toAbsolutePath().normalize(), jdk21.toAbsolutePath().normalize(), "replaced with 21");
         } finally {
             deleteRecursive(root);
             deleteRecursive(jdk21);
@@ -345,7 +318,8 @@ public final class GradleCommandTest {
         }
     }
 
-    private static void testApplyJavaHomeThrowsWhenNoCompatibleJdk() throws Exception {
+    @Test
+    void testApplyJavaHomeThrowsWhenNoCompatibleJdk() throws Exception {
         Path root = fakeGradleProject();
         Path jdk26 = Files.createTempDirectory("lide-only-26");
         try {
@@ -356,17 +330,13 @@ public final class GradleCommandTest {
             try {
                 GradleCommand.applyGradleJavaHome(builder, root, List.of(jdk26));
                 if (Runtime.version().feature() <= 21) {
-                    System.out.println("SKIP throw: running JVM is compatible with Gradle 8.5");
-                    passed++;
-                    return;
+                    Assumptions.assumeTrue(false, "running JVM is compatible with Gradle 8.5");
                 }
-                failed++;
-                System.err.println("FAIL expected IllegalStateException for Java 26 vs Gradle 8.5");
+                fail("expected IllegalStateException for Java 26 vs Gradle 8.5");
             } catch (IllegalStateException ex) {
-                assertTrue("mentions Java 26 or running version",
-                        ex.getMessage().contains("cannot run on Java"));
-                assertTrue("mentions major version", ex.getMessage().contains("major version"));
-                assertTrue("suggests JDK 21", ex.getMessage().contains("JDK 21"));
+                assertTrue(ex.getMessage().contains("cannot run on Java"), "mentions Java 26 or running version");
+                assertTrue(ex.getMessage().contains("major version"), "mentions major version");
+                assertTrue(ex.getMessage().contains("JDK 21"), "suggests JDK 21");
             }
         } finally {
             deleteRecursive(root);
@@ -374,29 +344,28 @@ public final class GradleCommandTest {
         }
     }
 
-    private static void testIncompatibleMessageMentionsMajorVersion() {
+    @Test
+    void testIncompatibleMessageMentionsMajorVersion() throws Exception {
         String message = GradleCommand.incompatibleJdkMessage(
                 "8.10.2", GradleCommand.javaRangeForGradle("8.10.2"), 26);
-        assertTrue("gradle version", message.contains("8.10.2"));
-        assertTrue("java 26", message.contains("Java 26"));
-        assertTrue("major 70", message.contains("70"));
-        assertTrue("upgrade wrapper", message.contains("9.4"));
+        assertTrue(message.contains("8.10.2"), "gradle version");
+        assertTrue(message.contains("Java 26"), "java 26");
+        assertTrue(message.contains("70"), "major 70");
+        assertTrue(message.contains("9.4"), "upgrade wrapper");
     }
 
-    private static void testProcessBuilderSetsJavaHome() throws Exception {
+    @Test
+    void testProcessBuilderSetsJavaHome() throws Exception {
         Path root = fakeGradleProject();
         try {
             writeWrapper(root, "9.4.0");
             ProcessBuilder builder = GradleCommand.processBuilder(root, GradleCommand.BUILD);
-            assertEqual("cwd", root.toAbsolutePath().normalize().toFile(), builder.directory());
+            assertEquals(root.toAbsolutePath().normalize().toFile(), builder.directory(), "cwd");
             String detected = LadleCommand.detectedJdkHome();
-            if (detected == null && builder.environment().get("JAVA_HOME") == null) {
-                System.out.println("SKIP JAVA_HOME env (no JDK detected)");
-                return;
-            }
+            Assumptions.assumeTrue(detected != null || builder.environment().get("JAVA_HOME") != null, "SKIP JAVA_HOME env (no JDK detected)");
             String home = builder.environment().get("JAVA_HOME");
-            assertTrue("JAVA_HOME set", home != null && !home.isBlank());
-            assertTrue("JAVA_HOME is a JDK", LadleCommand.isJdkHome(home));
+            assertTrue(home != null && !home.isBlank(), "JAVA_HOME set");
+            assertTrue(LadleCommand.isJdkHome(home), "JAVA_HOME is a JDK");
         } finally {
             deleteRecursive(root);
         }
@@ -447,24 +416,4 @@ public final class GradleCommandTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private GradleCommandTest() {
-    }
 }

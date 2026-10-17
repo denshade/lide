@@ -1,5 +1,10 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.Assumptions;
 import java.awt.GraphicsEnvironment;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -16,152 +21,108 @@ import javax.swing.SwingUtilities;
  * Tests for creating a new file from the File menu and project tree.
  */
 public final class NewFileTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) throws Exception {
-        testCreatesEmptyFile();
-        testCreatesNestedPath();
-        testRejectsBlankName();
-        testRejectsDotDot();
-        testRejectsExistingFile();
-        testRejectsAbsolutePath();
-        testRejectsTrailingSeparator();
-        testRejectsInvalidCharacters();
-        if (GraphicsEnvironment.isHeadless()) {
-            System.out.println("SKIP: headless environment cannot run new-file UI tests");
-        } else {
-            SwingUtilities.invokeAndWait(() -> {
-                testFileMenuItem();
-                testSelectedDirectoryWithoutProject();
-            });
-            testCreatesAndOpensInEditor();
-            testSelectedDirectoryIsProjectRoot();
-        }
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
-    }
-
-    private static void testCreatesEmptyFile() throws Exception {
+    @Test
+    void testCreatesEmptyFile() throws Exception {
         Path dir = Files.createTempDirectory("lide-new-file");
         try {
             Path created = NewFile.create(dir, "Hello.java");
-            assertTrue("exists", Files.isRegularFile(created));
-            assertEqual("name", "Hello.java", created.getFileName().toString());
-            assertEqual("empty", 0L, Files.size(created));
-            assertEqual("parent", dir.toAbsolutePath().normalize(), created.getParent());
+            assertTrue(Files.isRegularFile(created), "exists");
+            assertEquals("Hello.java", created.getFileName().toString(), "name");
+            assertEquals(0L, Files.size(created), "empty");
+            assertEquals(dir.toAbsolutePath().normalize(), created.getParent(), "parent");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testCreatesNestedPath() throws Exception {
+    @Test
+    void testCreatesNestedPath() throws Exception {
         Path dir = Files.createTempDirectory("lide-new-nested");
         try {
             Path created = NewFile.create(dir, "src/pkg/Hello.java");
-            assertTrue("exists", Files.isRegularFile(created));
-            assertTrue("parent dirs", Files.isDirectory(dir.resolve("src").resolve("pkg")));
-            assertEqual("relative", Path.of("src", "pkg", "Hello.java"),
-                    dir.toAbsolutePath().normalize().relativize(created));
+            assertTrue(Files.isRegularFile(created), "exists");
+            assertTrue(Files.isDirectory(dir.resolve("src").resolve("pkg")), "parent dirs");
+            assertEquals(Path.of("src", "pkg", "Hello.java"), dir.toAbsolutePath().normalize().relativize(created), "relative");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testRejectsBlankName() {
-        try {
-            NewFile.resolve(Path.of("."), "   ");
-            failed++;
-            System.err.println("FAIL blank name: expected exception");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-            assertTrue("blank message", ex.getMessage().toLowerCase().contains("file name"));
-        }
+    @Test
+    void testRejectsBlankName() throws Exception {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> NewFile.resolve(Path.of("."), "   "));
+        assertTrue(ex.getMessage().toLowerCase().contains("file name"), "blank message");
     }
 
-    private static void testRejectsDotDot() {
-        try {
-            NewFile.resolve(Path.of("."), "../secret.txt");
-            failed++;
-            System.err.println("FAIL dot-dot: expected exception");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-        }
+    @Test
+    void testRejectsDotDot() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> NewFile.resolve(Path.of("."), "../secret.txt"));
     }
 
-    private static void testRejectsExistingFile() throws Exception {
+    @Test
+    void testRejectsExistingFile() throws Exception {
         Path dir = Files.createTempDirectory("lide-new-exists");
         try {
             Files.writeString(dir.resolve("a.txt"), "keep");
-            try {
-                NewFile.create(dir, "a.txt");
-                failed++;
-                System.err.println("FAIL existing: expected exception");
-            } catch (java.nio.file.FileAlreadyExistsException ex) {
-                passed++;
-                assertEqual("unchanged", "keep", Files.readString(dir.resolve("a.txt")));
-            }
+            java.nio.file.FileAlreadyExistsException ex = assertThrows(java.nio.file.FileAlreadyExistsException.class, () -> NewFile.create(dir, "a.txt"));
+        assertEquals("keep", Files.readString(dir.resolve("a.txt")), "unchanged");
         } finally {
             deleteRecursive(dir);
         }
     }
 
-    private static void testRejectsAbsolutePath() {
+    @Test
+    void testRejectsAbsolutePath() throws Exception {
         Path absolute = Path.of("").toAbsolutePath().resolve("outside.txt");
-        try {
-            NewFile.resolve(Path.of("."), absolute.toString());
-            failed++;
-            System.err.println("FAIL absolute: expected exception");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-        }
+        assertThrows(IllegalArgumentException.class, () -> NewFile.resolve(Path.of("."), absolute.toString()));
     }
 
-    private static void testRejectsTrailingSeparator() {
-        try {
-            NewFile.resolve(Path.of("."), "src/");
-            failed++;
-            System.err.println("FAIL trailing slash: expected exception");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-        }
+    @Test
+    void testRejectsTrailingSeparator() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> NewFile.resolve(Path.of("."), "src/"));
     }
 
-    private static void testRejectsInvalidCharacters() {
-        try {
-            NewFile.resolve(Path.of("."), "a<b.txt");
-            failed++;
-            System.err.println("FAIL invalid char: expected exception");
-        } catch (IllegalArgumentException ex) {
-            passed++;
-        }
+    @Test
+    void testRejectsInvalidCharacters() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> NewFile.resolve(Path.of("."), "a<b.txt"));
     }
 
-    private static void testFileMenuItem() {
+    @Test
+    void testFileMenuItem() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testFileMenuItem);
+            return;
+        }
         MainFrame frame = new MainFrame();
         try {
             JMenu file = findMenu(frame.getJMenuBar(), "File");
-            assertTrue("File menu exists", file != null);
+            assertTrue(file != null, "File menu exists");
             JMenuItem item = findMenuItem(file, "New File…");
-            assertTrue("New File item exists", item != null);
-            assertEqual("accelerator",
-                    KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK),
-                    item.getAccelerator());
+            assertTrue(item != null, "New File item exists");
+            assertEquals(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK), item.getAccelerator(), "accelerator");
             List<String> labels = itemLabels(file);
-            assertEqual("first item", "New File…", labels.get(0));
+            assertEquals("New File…", labels.get(0), "first item");
         } finally {
             frame.dispose();
         }
     }
 
-    private static void testSelectedDirectoryWithoutProject() {
+    @Test
+    void testSelectedDirectoryWithoutProject() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingSupport.onEdt(this::testSelectedDirectoryWithoutProject);
+            return;
+        }
         ProjectTreePanel tree = new ProjectTreePanel();
-        assertTrue("no project", tree.getSelectedDirectory() == null);
+        assertTrue(tree.getSelectedDirectory() == null, "no project");
     }
 
-    private static void testCreatesAndOpensInEditor() throws Exception {
+    @Test
+    void testCreatesAndOpensInEditor() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
         Path root = Files.createTempDirectory("lide-new-ui");
         try {
             SwingUtilities.invokeAndWait(() -> {
@@ -169,14 +130,12 @@ public final class NewFileTest {
                 try {
                     frame.applyProjectDirectory(root);
                     Path created = frame.createNewFileIn(root, "App.java");
-                    assertTrue("created path", created != null);
-                    assertTrue("on disk", Files.isRegularFile(root.resolve("App.java")));
+                    assertTrue(created != null, "created path");
+                    assertTrue(Files.isRegularFile(root.resolve("App.java")), "on disk");
                     CodeEditor editor = frame.editorTabs().getActiveEditor();
-                    assertTrue("editor open", editor != null);
-                    assertEqual("editor file",
-                            root.resolve("App.java").toAbsolutePath().normalize(),
-                            editor.getFilePath().toAbsolutePath().normalize());
-                    assertEqual("empty buffer", "", normalize(editor.getDocumentText()));
+                    assertTrue(editor != null, "editor open");
+                    assertEquals(root.resolve("App.java").toAbsolutePath().normalize(), editor.getFilePath().toAbsolutePath().normalize(), "editor file");
+                    assertEquals("", normalize(editor.getDocumentText()), "empty buffer");
                 } finally {
                     frame.dispose();
                 }
@@ -186,15 +145,15 @@ public final class NewFileTest {
         }
     }
 
-    private static void testSelectedDirectoryIsProjectRoot() throws Exception {
+    @Test
+    void testSelectedDirectoryIsProjectRoot() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
         Path root = Files.createTempDirectory("lide-new-sel");
         try {
             SwingUtilities.invokeAndWait(() -> {
                 ProjectTreePanel tree = new ProjectTreePanel();
                 tree.openDirectory(root);
-                assertEqual("selected dir is root",
-                        root.toAbsolutePath().normalize(),
-                        tree.getSelectedDirectory().toAbsolutePath().normalize());
+                assertEquals(root.toAbsolutePath().normalize(), tree.getSelectedDirectory().toAbsolutePath().normalize(), "selected dir is root");
             });
         } finally {
             deleteRecursive(root);
@@ -248,24 +207,4 @@ public final class NewFileTest {
         }
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private NewFileTest() {
-    }
 }

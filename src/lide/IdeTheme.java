@@ -15,38 +15,38 @@ import javax.swing.plaf.InsetsUIResource;
 import javax.swing.plaf.basic.BasicButtonUI;
 
 /**
- * IntelliJ-inspired dark theme applied to Swing UI defaults.
+ * Light theme applied to Swing UI defaults.
  */
 public final class IdeTheme {
-    public static final Color BG = new Color(0x2B2B2B);
-    public static final Color BG_RAISED = new Color(0x3C3F41);
-    public static final Color BG_TREE = new Color(0x313335);
-    public static final Color BG_EDITOR = new Color(0x2B2B2B);
-    public static final Color FG = new Color(0xA9B7C6);
-    public static final Color FG_DIM = new Color(0x808080);
-    /** Near-white — enabled buttons and menu items. */
-    public static final Color FG_BRIGHT = new Color(0xF0F0F0);
-    /** Clearly faded vs FG_BRIGHT, still readable on dark chrome. */
-    public static final Color FG_DISABLED = new Color(0x6A6A6A);
-    public static final Color BUTTON_BG = new Color(0x54585A);
-    public static final Color BUTTON_BG_DISABLED = new Color(0x2E2E2E);
-    public static final Color BUTTON_BORDER = new Color(0x8A9094);
-    public static final Color BUTTON_BORDER_DISABLED = new Color(0x3A3A3A);
+    public static final Color BG = new Color(0xF5F5F5);
+    public static final Color BG_RAISED = new Color(0xEEEEEE);
+    public static final Color BG_TREE = new Color(0xFFFFFF);
+    public static final Color BG_EDITOR = new Color(0xFFFFFF);
+    public static final Color FG = new Color(0x1A1A1A);
+    public static final Color FG_DIM = new Color(0x6E6E6E);
+    /** Enabled button and toolbar-icon ink. */
+    public static final Color FG_BRIGHT = new Color(0x1A1A1A);
+    /** Faded label for disabled controls, still readable on a light fill. */
+    public static final Color FG_DISABLED = new Color(0xA0A0A0);
+    public static final Color BUTTON_BG = new Color(0xFFFFFF);
+    public static final Color BUTTON_BG_DISABLED = new Color(0xE0E0E0);
+    public static final Color BUTTON_BORDER = new Color(0x6B6B6B);
+    public static final Color BUTTON_BORDER_DISABLED = new Color(0xD0D0D0);
     public static final Color SELECTION = new Color(0x214283);
-    public static final Color CARET = new Color(0xBBBBBB);
-    public static final Color BORDER = new Color(0x515151);
-    public static final Color LINE_GUTTER = new Color(0x313335);
-    public static final Color LINE_NUMBER = new Color(0x606366);
-    public static final Color TAB_ACTIVE = new Color(0x4E5254);
+    public static final Color CARET = new Color(0x000000);
+    public static final Color BORDER = new Color(0xC8C8C8);
+    public static final Color LINE_GUTTER = new Color(0xF7F7F7);
+    public static final Color LINE_NUMBER = new Color(0x808080);
+    public static final Color TAB_ACTIVE = new Color(0xFFFFFF);
     public static final Color ACCENT = new Color(0x3592C4);
 
-    public static final Color KEYWORD = new Color(0xCC7832);
-    public static final Color TYPE = new Color(0xFFC66D);
-    public static final Color STRING = new Color(0x6A8759);
-    public static final Color COMMENT = new Color(0x808080);
-    public static final Color NUMBER = new Color(0x6897BB);
-    public static final Color ANNOTATION = new Color(0xBBB529);
-    public static final Color DEFAULT_TEXT = new Color(0xA9B7C6);
+    public static final Color KEYWORD = new Color(0x0033B3);
+    public static final Color TYPE = new Color(0x003366);
+    public static final Color STRING = new Color(0x067D17);
+    public static final Color COMMENT = new Color(0x8C8C8C);
+    public static final Color NUMBER = new Color(0x1750EB);
+    public static final Color ANNOTATION = new Color(0x9E880D);
+    public static final Color DEFAULT_TEXT = new Color(0x080808);
 
     public static final Font UI_FONT = new Font("Segoe UI", Font.PLAIN, 13);
     public static final Font EDITOR_FONT = new Font(Font.MONOSPACED, Font.PLAIN, 14);
@@ -188,7 +188,7 @@ public final class IdeTheme {
     }
 
     /**
-     * Dark-theme button chrome that actually shows enabled vs disabled.
+     * Button chrome that shows enabled vs disabled.
      * Windows button UI ignores background, so these use basic painting.
      */
     static void styleButton(JButton button) {

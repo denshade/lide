@@ -469,6 +469,18 @@ public final class ProjectTreePanel extends JPanel {
         }
     }
 
+    /**
+     * Renders one tree row. {@code leaf} is false for a directory.
+     */
+    Component renderCell(Object value, boolean selected, boolean leaf) {
+        return tree.getCellRenderer().getTreeCellRendererComponent(
+                tree, value, selected, !leaf, leaf, 0, false);
+    }
+
+    Object projectRootValue() {
+        return rootNode;
+    }
+
     private record LabelNode(String text) {
         @Override
         public String toString() {
@@ -491,11 +503,28 @@ public final class ProjectTreePanel extends JPanel {
                 JTree tree, Object value, boolean selected, boolean expanded,
                 boolean leaf, int row, boolean hasFocus) {
             super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
-            setOpaque(true);
-            if (!selected) {
+            if (selected) {
+                setBackground(IdeTheme.SELECTION);
+                setForeground(java.awt.Color.WHITE);
+            } else {
                 setBackground(IdeTheme.BG_TREE);
+                setForeground(IdeTheme.FG);
             }
+            setOpaque(true);
             return this;
+        }
+
+        @Override
+        public void paint(Graphics g) {
+            // Fill the whole row first. The label UI then paints getBackground()
+            // when opaque, which used to cover a selected directory with white
+            // and hide the white text.
+            g.setColor(getBackground());
+            g.fillRect(0, 0, getWidth(), getHeight());
+            boolean opaque = isOpaque();
+            setOpaque(false);
+            super.paint(g);
+            setOpaque(opaque);
         }
     }
 

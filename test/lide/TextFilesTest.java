@@ -1,5 +1,8 @@
 package lide;
 
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
@@ -7,105 +10,76 @@ import java.nio.file.Path;
  * Tests for known text/binary extensions and text decoding.
  */
 public final class TextFilesTest {
-    private static int passed;
-    private static int failed;
 
-    public static void main(String[] args) {
-        testKnownTextExtensions();
-        testKnownTextFilenames();
-        testUnknownAndBinaryExtensions();
-        testDecodeUtf8();
-        testDecodeUtf8Bom();
-        testDecodeUtf16Le();
-        testDecodeWindows1252();
-        testDecodeEmpty();
-        System.out.println("Passed: " + passed + ", Failed: " + failed);
-        if (failed > 0) {
-            System.exit(1);
-        }
+    @Test
+    void testKnownTextExtensions() throws Exception {
+        assertTrue(TextFiles.isKnownText(Path.of("README.md")), ".md");
+        assertTrue(TextFiles.isKnownText(Path.of("notes.txt")), ".txt");
+        assertTrue(TextFiles.isKnownText(Path.of("data.csv")), ".csv");
+        assertTrue(TextFiles.isKnownText(Path.of("package.json")), ".json");
+        assertTrue(TextFiles.isKnownText(Path.of("app.yml")), ".yml");
+        assertTrue(TextFiles.isKnownText(Path.of("Main.java")), ".java");
+        assertTrue(TextFiles.isKnownText(Path.of("run.bat")), ".bat");
+        assertTrue(TextFiles.isKnownText(Path.of("NOTES.TXT")), "case insensitive");
     }
 
-    private static void testKnownTextExtensions() {
-        assertTrue(".md", TextFiles.isKnownText(Path.of("README.md")));
-        assertTrue(".txt", TextFiles.isKnownText(Path.of("notes.txt")));
-        assertTrue(".csv", TextFiles.isKnownText(Path.of("data.csv")));
-        assertTrue(".json", TextFiles.isKnownText(Path.of("package.json")));
-        assertTrue(".yml", TextFiles.isKnownText(Path.of("app.yml")));
-        assertTrue(".java", TextFiles.isKnownText(Path.of("Main.java")));
-        assertTrue(".bat", TextFiles.isKnownText(Path.of("run.bat")));
-        assertTrue("case insensitive", TextFiles.isKnownText(Path.of("NOTES.TXT")));
+    @Test
+    void testKnownTextFilenames() throws Exception {
+        assertTrue(TextFiles.isKnownText(Path.of("Makefile")), "Makefile");
+        assertTrue(TextFiles.isKnownText(Path.of("Dockerfile")), "Dockerfile");
+        assertTrue(TextFiles.isKnownText(Path.of("LICENSE")), "LICENSE");
     }
 
-    private static void testKnownTextFilenames() {
-        assertTrue("Makefile", TextFiles.isKnownText(Path.of("Makefile")));
-        assertTrue("Dockerfile", TextFiles.isKnownText(Path.of("Dockerfile")));
-        assertTrue("LICENSE", TextFiles.isKnownText(Path.of("LICENSE")));
+    @Test
+    void testUnknownAndBinaryExtensions() throws Exception {
+        assertTrue(!TextFiles.isKnownText(Path.of("blob.xyz")), "unknown not known text");
+        assertTrue(!TextFiles.isKnownText(Path.of("icon.png")), "png not text");
+        assertTrue(TextFiles.isKnownBinary(Path.of("icon.png")), "png is binary");
+        assertTrue(TextFiles.isKnownBinary(Path.of("lib.jar")), "jar is binary");
+        assertTrue(TextFiles.isKnownBinary(Path.of("Foo.class")), "class is binary");
+        assertTrue(!TextFiles.isKnownBinary(Path.of("a.txt")), "txt is not binary type");
+        assertTrue(!TextFiles.isKnownBinary(Path.of("LICENSE")), "no extension not binary");
     }
 
-    private static void testUnknownAndBinaryExtensions() {
-        assertTrue("unknown not known text", !TextFiles.isKnownText(Path.of("blob.xyz")));
-        assertTrue("png not text", !TextFiles.isKnownText(Path.of("icon.png")));
-        assertTrue("png is binary", TextFiles.isKnownBinary(Path.of("icon.png")));
-        assertTrue("jar is binary", TextFiles.isKnownBinary(Path.of("lib.jar")));
-        assertTrue("class is binary", TextFiles.isKnownBinary(Path.of("Foo.class")));
-        assertTrue("txt is not binary type", !TextFiles.isKnownBinary(Path.of("a.txt")));
-        assertTrue("no extension not binary", !TextFiles.isKnownBinary(Path.of("LICENSE")));
-    }
-
-    private static void testDecodeUtf8() {
+    @Test
+    void testDecodeUtf8() throws Exception {
         byte[] bytes = "hello café".getBytes(StandardCharsets.UTF_8);
-        assertEqual("utf8", "hello café", TextFiles.decode(bytes));
+        assertEquals("hello café", TextFiles.decode(bytes), "utf8");
     }
 
-    private static void testDecodeUtf8Bom() {
+    @Test
+    void testDecodeUtf8Bom() throws Exception {
         byte[] body = "hi".getBytes(StandardCharsets.UTF_8);
         byte[] bytes = new byte[3 + body.length];
         bytes[0] = (byte) 0xEF;
         bytes[1] = (byte) 0xBB;
         bytes[2] = (byte) 0xBF;
         System.arraycopy(body, 0, bytes, 3, body.length);
-        assertEqual("utf8 bom stripped", "hi", TextFiles.decode(bytes));
+        assertEquals("hi", TextFiles.decode(bytes), "utf8 bom stripped");
     }
 
-    private static void testDecodeUtf16Le() {
+    @Test
+    void testDecodeUtf16Le() throws Exception {
         byte[] bytes = new byte[] {
                 (byte) 0xFF, (byte) 0xFE,
                 'A', 0, 'B', 0, 'C', 0
         };
-        assertEqual("utf16le", "ABC", TextFiles.decode(bytes));
+        assertEquals("ABC", TextFiles.decode(bytes), "utf16le");
     }
 
-    private static void testDecodeWindows1252() {
+    @Test
+    void testDecodeWindows1252() throws Exception {
         // 0xE9 is é in Windows-1252 and is not valid UTF-8 as a standalone byte.
         byte[] bytes = new byte[] {'c', 'a', 'f', (byte) 0xE9};
         String decoded = TextFiles.decode(bytes);
-        assertEqual("windows-1252", "caf" + '\u00E9', decoded);
-        assertTrue("not replacement char", !decoded.contains("\uFFFD"));
+        assertEquals("caf" + '\u00E9', decoded, "windows-1252");
+        assertTrue(!decoded.contains("\uFFFD"), "not replacement char");
     }
 
-    private static void testDecodeEmpty() {
-        assertEqual("empty", "", TextFiles.decode(new byte[0]));
-        assertEqual("null", "", TextFiles.decode(null));
+    @Test
+    void testDecodeEmpty() throws Exception {
+        assertEquals("", TextFiles.decode(new byte[0]), "empty");
+        assertEquals("", TextFiles.decode(null), "null");
     }
 
-    private static void assertEqual(String label, Object expected, Object actual) {
-        if (expected == null ? actual == null : expected.equals(actual)) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label + ": expected " + expected + " but was " + actual);
-    }
-
-    private static void assertTrue(String label, boolean condition) {
-        if (condition) {
-            passed++;
-            return;
-        }
-        failed++;
-        System.err.println("FAIL " + label);
-    }
-
-    private TextFilesTest() {
-    }
 }
