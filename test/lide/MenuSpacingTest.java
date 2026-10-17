@@ -29,6 +29,8 @@ public final class MenuSpacingTest {
         assertEquals(0, UIManager.get("MenuItem.minimumTextOffset"), "minimumTextOffset");
         assertEquals(IdeTheme.FG_DIM.getRGB(), UIManager.getColor("MenuItem.disabledForeground").getRGB(), "disabled fg");
         assertEquals(IdeTheme.FG_DISABLED.getRGB(), UIManager.getColor("Button.disabledText").getRGB(), "button disabled text");
+        assertTrue(luminance(IdeTheme.BG_EDITOR) > 200, "editor background is light");
+        assertTrue(luminance(IdeTheme.DEFAULT_TEXT) < 40, "editor text is dark");
     }
 
     @Test
@@ -63,7 +65,7 @@ public final class MenuSpacingTest {
         int gutter = itemWidth - textWidth;
         assertTrue(gutter < 40, "left gutter reasonable (< 40px beyond text+padding), was " + gutter);
 
-        assertTrue(luminance(IdeTheme.FG_DIM) < luminance(IdeTheme.FG), "disabled fg darker than enabled");
+        assertTrue(luminance(IdeTheme.FG_DIM) > luminance(IdeTheme.FG), "disabled menu text lighter than enabled");
     }
 
     @Test
@@ -79,7 +81,7 @@ public final class MenuSpacingTest {
         assertEquals(IdeTheme.FG_DISABLED, off.getForeground(), "disabled fg");
         assertEquals(IdeTheme.BUTTON_BG_DISABLED, off.getBackground(), "disabled bg");
         assertTrue(luminance(on.getBackground()) > luminance(off.getBackground()), "enabled fill lighter than disabled");
-        assertTrue(luminance(on.getForeground()) > luminance(off.getForeground()) + 80, "enabled label brighter than disabled");
+        assertTrue(luminance(on.getForeground()) + 80 < luminance(off.getForeground()), "enabled label darker than disabled");
     }
 
     private static double luminance(java.awt.Color c) {
