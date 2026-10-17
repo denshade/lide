@@ -5,7 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -143,6 +148,79 @@ public final class ProjectTreePanelTest {
         } finally {
             deleteRecursive(root);
         }
+    }
+
+    @Test
+    void testSelectedDirectoryIsReadable() throws Exception {
+        Path root = Files.createTempDirectory("lide-tree-select");
+        try {
+            Files.createDirectories(root.resolve("src"));
+            Files.writeString(root.resolve("src").resolve("A.java"), "class A {}");
+            SwingUtilities.invokeAndWait(() -> {
+                try {
+                    javax.swing.UIManager.setLookAndFeel(
+                            javax.swing.UIManager.getSystemLookAndFeelClassName());
+                } catch (Exception ex) {
+                    AppLog.exception("Could not set system look and feel for tree selection test", ex);
+                }
+                IdeTheme.apply();
+                ProjectTreePanel tree = new ProjectTreePanel();
+                tree.openDirectory(root);
+                assertSelectedRowReadable(tree.renderCell(tree.projectRootValue(), true, false), "directory");
+                assertSelectedRowReadable(tree.renderCell("A.java", true, true), "file");
+                Component plain = tree.renderCell(tree.projectRootValue(), false, false);
+                assertEquals(IdeTheme.FG, plain.getForeground(), "unselected text");
+                int edge = paintEdge(plain);
+                assertEquals(IdeTheme.BG_TREE.getRGB(), edge, "unselected row stays light");
+            });
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    private static void assertSelectedRowReadable(Component row, String kind) {
+        assertEquals(Color.WHITE, row.getForeground(), kind + " selected text");
+        assertEquals(IdeTheme.SELECTION, row.getBackground(), kind + " selected fill");
+        int edge = paintEdge(row);
+        assertEquals(IdeTheme.SELECTION.getRGB(), edge, kind + " selection is dark");
+        assertTrue(hasNearWhitePixel(paint(row)), kind + " label is visible");
+    }
+
+    private static int paintEdge(Component row) {
+        BufferedImage image = paint(row);
+        return image.getRGB(image.getWidth() - 2, image.getHeight() / 2);
+    }
+
+    private static boolean hasNearWhitePixel(BufferedImage image) {
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int rgb = image.getRGB(x, y);
+                int r = (rgb >> 16) & 0xFF;
+                int g = (rgb >> 8) & 0xFF;
+                int b = rgb & 0xFF;
+                if (r > 240 && g > 240 && b > 240) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static BufferedImage paint(Component row) {
+        Dimension pref = row.getPreferredSize();
+        int width = Math.max(pref.width + 40, 180);
+        int height = Math.max(pref.height, 22);
+        row.setSize(width, height);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(Color.MAGENTA);
+            g.fillRect(0, 0, width, height);
+            row.paint(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
     }
 
     private static boolean waitForChild(ProjectTreePanel tree, String name, long timeoutMs)

@@ -134,25 +134,66 @@ public final class NewJavaClassTest {
     }
 
     @Test
+    void testPackageFromSelectedDirectory() throws Exception {
+        Path root = Files.createTempDirectory("lide-java-dir");
+        try {
+            Path pkg = root.resolve("src").resolve("lide");
+            Files.createDirectories(pkg);
+            Files.writeString(pkg.resolve("Existing.java"), "package lide;\n\npublic class Existing {\n}\n");
+            NewJavaClass.Namespace namespace = NewJavaClass.namespaceFor(root, pkg);
+            assertEquals(pkg.toAbsolutePath().normalize(), namespace.directory(), "selected folder");
+            assertEquals("lide", namespace.packageName(), "sibling package");
+
+            Path empty = root.resolve("src").resolve("other");
+            Files.createDirectories(empty);
+            NewJavaClass.Namespace inferred = NewJavaClass.namespaceFor(root, empty);
+            assertEquals("other", inferred.packageName(), "path under src");
+
+            Path maven = root.resolve("src").resolve("main").resolve("java").resolve("com").resolve("example");
+            Files.createDirectories(maven);
+            assertEquals("com.example", NewJavaClass.namespaceFor(root, maven).packageName(), "maven source root");
+
+            Path tests = root.resolve("test").resolve("lide");
+            Files.createDirectories(tests);
+            assertEquals("lide", NewJavaClass.namespaceFor(root, tests).packageName(), "test source root");
+
+            assertEquals("", NewJavaClass.namespaceFor(root, root.resolve("src")).packageName(), "src itself");
+            assertEquals("", NewJavaClass.namespaceFor(root, root).packageName(), "project root");
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    @Test
+    void testSiblingDefaultPackageWinsOverPath() throws Exception {
+        Path root = Files.createTempDirectory("lide-java-default-dir");
+        try {
+            Path pkg = root.resolve("src").resolve("lide");
+            Files.createDirectories(pkg);
+            Files.writeString(pkg.resolve("App.java"), "public class App {\n}\n");
+            assertEquals("", NewJavaClass.namespaceFor(root, pkg).packageName(), "default package in folder");
+        } finally {
+            deleteRecursive(root);
+        }
+    }
+
+    @Test
     void testCreatesAndOpensInEditor() throws Exception {
         Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "headless environment");
         Path root = Files.createTempDirectory("lide-java-ui");
         try {
             Path pkg = root.resolve("src").resolve("lide");
             Files.createDirectories(pkg);
-            Path existing = pkg.resolve("Existing.java");
-            String source = "package lide;\n\npublic class Existing {\n}\n";
-            Files.writeString(existing, source);
             Path[] createdHolder = new Path[1];
             SwingUtilities.invokeAndWait(() -> {
                 MainFrame frame = new MainFrame();
                 try {
                     frame.applyProjectDirectory(root);
-                    frame.editorTabs().openFile(existing);
-                    Path created = frame.createNewJavaClass(existing, source, "Widget.java");
+                    assertTrue(frame.editorTabs().getActiveEditor() == null, "no file open");
+                    Path created = frame.createNewJavaClass(pkg, "Widget.java");
                     createdHolder[0] = created;
                     assertTrue(created != null, "created path");
-                    assertEquals(pkg.resolve("Widget.java").toAbsolutePath().normalize(), created, "beside open file");
+                    assertEquals(pkg.resolve("Widget.java").toAbsolutePath().normalize(), created, "in selected folder");
                     CodeEditor editor = frame.editorTabs().getActiveEditor();
                     assertTrue(editor != null, "editor open");
                     assertEquals(created, editor.getFilePath().toAbsolutePath().normalize(), "editor file");

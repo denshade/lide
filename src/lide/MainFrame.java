@@ -937,12 +937,11 @@ public final class MainFrame extends JFrame {
     }
 
     void promptNewJavaClass() {
-        CodeEditor editor = editors.getActiveEditor();
-        Path path = editor != null ? editor.getFilePath() : null;
-        if (path == null || Language.fromPath(path) != Language.JAVA) {
+        Path directory = projectTree.getSelectedDirectory();
+        if (directory == null) {
             JOptionPane.showMessageDialog(
                     this,
-                    "Open a Java file first. The new class is created in that file's package.",
+                    "Open a project directory first.",
                     "New Java Class",
                     JOptionPane.INFORMATION_MESSAGE);
             return;
@@ -955,12 +954,13 @@ public final class MainFrame extends JFrame {
         if (name == null) {
             return;
         }
-        createNewJavaClass(path, editor.getDocumentText(), name);
+        createNewJavaClass(directory, name);
     }
 
-    Path createNewJavaClass(Path openFile, String source, String className) {
+    Path createNewJavaClass(Path directory, String className) {
         try {
-            NewJavaClass.Namespace namespace = NewJavaClass.namespaceOf(openFile, source);
+            NewJavaClass.Namespace namespace = NewJavaClass.namespaceFor(
+                    projectTree.getProjectRoot(), directory);
             Path created = NewJavaClass.create(
                     namespace.directory(), namespace.packageName(), className);
             projectTree.refreshDirectory(namespace.directory());
